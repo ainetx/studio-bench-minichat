@@ -204,7 +204,7 @@ gears:
         sse_ping_interval_seconds: 5
       # Orphan watchdog: minimum allowed timeout (90s) and frequent scans. No
       # E2E test waits for it (90s does not fit the test budget); orphan
-      # handling is unit-tested (E2E-SCENARIOS.md 19-06).
+      # handling is unit-tested only (not an e2e acceptance criterion).
       orphan_watchdog:
         enabled: true
         scan_interval_secs: 2
