@@ -601,7 +601,7 @@ When a chat is deleted, the system MUST mark attachments for asynchronous cleanu
 
 **P1 status** ([ADR-0008](./ADR/0008-cpt-cf-mini-chat-adr-quota-policy-scope.md)): the only background LLM task is the thread summary (document summary is not implemented). It emits a usage event with `billing_outcome = system_task`, `settlement_method = none`, `actual_credits_micro = 0` and `requester_type = system`. Charging a tenant operational bucket, auditing system tasks and checking kill switches for them are Future (P2+).
 
-**P1 mandatory**: the transactional usage outbox (toolkit-db outbox, queue `mini-chat.usage_snapshot`), CAS-guarded finalization, and the orphan turn watchdog are P1 requirements — they are required for billing event completeness (see DESIGN.md sections 5.2–5.5 and [outbox-pattern.md](features/outbox-pattern.md)).
+**P1 mandatory**: the transactional usage outbox (toolkit-db outbox, queue `mini-chat.usage_snapshot`), CAS-guarded finalization, and the orphan turn watchdog are P1 requirements — they are required for billing event completeness (see DESIGN.md sections 5.2–5.5).
 
 **Deferred to P2+**: detailed billing integration contracts (formal event payload schemas, RPC interfaces, credit proxy endpoints). See DESIGN.md section 5.6 for the full deferral list.
 
@@ -645,7 +645,7 @@ The UI experience MUST be resilient to SSE disconnects and idempotency conflicts
 
 ### 5.9 MCP Servers Support
 
-All requirements in this section are **Future** and not implemented in P1 ([ADR-0006](./ADR/0006-cpt-cf-mini-chat-adr-mcp-deferred.md)). They are kept as the target specification; the design is preserved in [features/mcp-servers-support.md](./features/mcp-servers-support.md).
+All requirements in this section are **Future** and not implemented in P1 ([ADR-0006](./ADR/0006-cpt-cf-mini-chat-adr-mcp-deferred.md)).
 
 #### MCP Server Registry
 

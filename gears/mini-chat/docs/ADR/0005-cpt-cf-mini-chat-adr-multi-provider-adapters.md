@@ -96,7 +96,6 @@ The gear therefore declares `deps = [types_registry, authn_resolver, authz_resol
 ## More Information
 
 * Supersedes the "multi-provider support is deferred" statements in DESIGN §2.2 and §4 "P1 Scope Boundaries", and the Anthropic out-of-scope item in PRD §4.2.
-* Anthropic-specific details: [features/anthropic-provider-support.md](../features/anthropic-provider-support.md).
 
 ## Traceability
 

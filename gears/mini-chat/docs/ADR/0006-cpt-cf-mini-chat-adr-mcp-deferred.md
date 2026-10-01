@@ -50,7 +50,7 @@ Chosen option: "Record MCP as deferred, keep its design as a feature document, a
 | `McpPool`, `McpService`, MCP tables | `cpt-cf-mini-chat-component-mcp-pool`, `cpt-cf-mini-chat-component-mcp-service`, `cpt-cf-mini-chat-dbtable-mcp-servers`, `cpt-cf-mini-chat-dbtable-mcp-server-tools`, `cpt-cf-mini-chat-dbtable-role-mcp-servers` | Future |
 | MCP metrics (`mini_chat_mcp_*`) | PRD §6.2 | Future |
 
-The MCP design text moves from DESIGN to [features/mcp-servers-support.md](../features/mcp-servers-support.md) and is marked "not implemented". DESIGN and PRD keep the requirement IDs with a reference to this ADR.
+The MCP design text is removed from DESIGN rather than kept elsewhere, since it is not implemented. DESIGN and PRD keep the requirement IDs with a reference to this ADR.
 
 ### Consequences
 

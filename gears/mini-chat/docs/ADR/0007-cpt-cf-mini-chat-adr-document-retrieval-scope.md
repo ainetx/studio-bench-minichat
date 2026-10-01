@@ -34,7 +34,7 @@ Chosen option: "Record the implemented behaviour and mark the gaps".
 | Per-turn `file_search` call limit | `cpt-cf-mini-chat-fr-file-search` | Accepted (different) | Bounded by the model's `max_tool_calls`, which covers all built-in tools together (default 2). |
 | Per-user daily `file_search` limit | PRD §4.1 | Not implemented | `quota_usage.file_search_calls` is not counted. |
 | Immediate exclusion of a deleted document from `file_search` | `cpt-cf-mini-chat-fr-attachment-deletion` | Not implemented | Deletion removes the provider file asynchronously. `file_search` is called without attribute filters, so chunks may be returned until the provider file is gone. Citations never reference a deleted attachment. Attachments referenced by a sent message cannot be deleted (409 `attachment_locked`). |
-| Anthropic chats: document search (`search_files`, `load_files`) | `features/anthropic-provider-support.md` §1.2 | Not implemented | Documents are indexed in the RAG provider, but the Anthropic adapter drops the `file_search` tool, so Claude cannot search them. Knowledge search (`search_knowledge`), when enabled, is the only retrieval path. |
+| Anthropic chats: document search (`search_files`, `load_files`) | ADR-0005 | Not implemented | Documents are indexed in the RAG provider, but the Anthropic adapter drops the `file_search` tool, so Claude cannot search them. Knowledge search (`search_knowledge`), when enabled, is the only retrieval path. |
 | Historical messages list deleted attachments | PRD §9 | Accepted (different) | `attachments[]` on messages lists only non-deleted attachments. |
 
 ### Consequences

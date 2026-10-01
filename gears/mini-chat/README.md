@@ -39,7 +39,7 @@ Provider entries in `mini-chat.config.providers` select an adapter by `kind` (`P
 | `vllm_responses` | Responses API (`/v1/responses`) | vLLM |
 | `anthropic_messages` | Messages API (`/v1/messages`) | Anthropic Platform, Microsoft Foundry |
 
-Anthropic chats use `rag_provider` for file storage and vector stores; document search is not available for them. See [ADR-0005](docs/ADR/0005-cpt-cf-mini-chat-adr-multi-provider-adapters.md) and [features/anthropic-provider-support.md](docs/features/anthropic-provider-support.md).
+Anthropic chats use `rag_provider` for file storage and vector stores; document search is not available for them. See [ADR-0005](docs/ADR/0005-cpt-cf-mini-chat-adr-multi-provider-adapters.md).
 
 ## Running Locally
 
@@ -119,5 +119,4 @@ python3 gears/mini-chat/scripts/smoke-test-api.py --no-sse
 - [PRD](docs/PRD.md)
 - [Design](docs/DESIGN.md)
 - [ADRs](docs/ADR/) — accepted decisions, including P1 scope and known deviations from DESIGN
-- [Feature docs](docs/features/)
 - [OpenAPI schema (generated)](../../docs/api/api.json)

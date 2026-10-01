@@ -39,11 +39,11 @@ Long conversations are managed via thread summaries - a Level 1 compression stra
 | `cpt-cf-mini-chat-fr-model-selection` | `p1` | User selects model per chat at creation; model locked for conversation lifetime; see constraint `cpt-cf-mini-chat-constraint-model-locked-per-chat` and Model Catalog Configuration |
 | `cpt-cf-mini-chat-fr-models-api` | `p1` | Public read-only Models API (`GET /v1/models`, `GET /v1/models/{id}`). Returns only models visible to the authenticated user (globally enabled). Catalog sourced from `mini-chat-model-policy-plugin`. See Models API (section 3.3). |
 | `cpt-cf-mini-chat-fr-message-reactions` | `p1` | Binary like/dislike on assistant messages; see `message_reactions` table |
-| `cpt-cf-mini-chat-fr-mcp-tool-discovery` | `p1` | **Not implemented (Future)** — see [ADR-0006](./ADR/0006-cpt-cf-mini-chat-adr-mcp-deferred.md) and [features/mcp-servers-support.md](./features/mcp-servers-support.md). |
-| `cpt-cf-mini-chat-fr-mcp-tool-execution` | `p1` | **Not implemented (Future)** — see [ADR-0006](./ADR/0006-cpt-cf-mini-chat-adr-mcp-deferred.md) and [features/mcp-servers-support.md](./features/mcp-servers-support.md). |
-| `cpt-cf-mini-chat-fr-mcp-server-registry` | `p1` | **Not implemented (Future)** — see [ADR-0006](./ADR/0006-cpt-cf-mini-chat-adr-mcp-deferred.md) and [features/mcp-servers-support.md](./features/mcp-servers-support.md). |
-| `cpt-cf-mini-chat-fr-mcp-hub-discovery` | `p2` | **Not implemented (Future)** — see [ADR-0006](./ADR/0006-cpt-cf-mini-chat-adr-mcp-deferred.md) and [features/mcp-servers-support.md](./features/mcp-servers-support.md). |
-| `cpt-cf-mini-chat-fr-mcp-role-access` | `p1` | **Not implemented (Future)** — see [ADR-0006](./ADR/0006-cpt-cf-mini-chat-adr-mcp-deferred.md) and [features/mcp-servers-support.md](./features/mcp-servers-support.md). |
+| `cpt-cf-mini-chat-fr-mcp-tool-discovery` | `p1` | **Not implemented (Future)** — see [ADR-0006](./ADR/0006-cpt-cf-mini-chat-adr-mcp-deferred.md). |
+| `cpt-cf-mini-chat-fr-mcp-tool-execution` | `p1` | **Not implemented (Future)** — see [ADR-0006](./ADR/0006-cpt-cf-mini-chat-adr-mcp-deferred.md). |
+| `cpt-cf-mini-chat-fr-mcp-server-registry` | `p1` | **Not implemented (Future)** — see [ADR-0006](./ADR/0006-cpt-cf-mini-chat-adr-mcp-deferred.md). |
+| `cpt-cf-mini-chat-fr-mcp-hub-discovery` | `p2` | **Not implemented (Future)** — see [ADR-0006](./ADR/0006-cpt-cf-mini-chat-adr-mcp-deferred.md). |
+| `cpt-cf-mini-chat-fr-mcp-role-access` | `p1` | **Not implemented (Future)** — see [ADR-0006](./ADR/0006-cpt-cf-mini-chat-adr-mcp-deferred.md). |
 | `cpt-cf-mini-chat-fr-group-chats` | `p2+` | Deferred — see `cpt-cf-mini-chat-adr-group-chat-usage-attribution` |
 
 #### NFR Allocation
@@ -67,7 +67,7 @@ Long conversations are managed via thread summaries - a Level 1 compression stra
 | `cpt-cf-mini-chat-adr-group-chat-usage-attribution` — [ADR-0003](./ADR/0003-cpt-cf-mini-chat-adr-group-chat-usage-attribution.md) | Group chat usage attribution model | Ensures quota enforcement is predictable for shared contexts (P2+) |
 | `cpt-cf-mini-chat-adr-canonical-error-contract` — [ADR-0004](./ADR/0004-cpt-cf-mini-chat-adr-canonical-error-contract.md) | REST errors are canonical `Problem` objects; the SSE `error` event keeps `{code, message}` | One error shape across platform gears; status follows the category |
 | `cpt-cf-mini-chat-adr-multi-provider-adapters` — [ADR-0005](./ADR/0005-cpt-cf-mini-chat-adr-multi-provider-adapters.md) | In-process adapter per provider kind; the gear provisions its own OAGW upstreams and routes | Multi-vendor catalog; OAGW routes cannot drift from gear config |
-| `cpt-cf-mini-chat-adr-mcp-deferred` — [ADR-0006](./ADR/0006-cpt-cf-mini-chat-adr-mcp-deferred.md) | MCP server support is deferred out of P1 | Not implemented; design kept in [features/mcp-servers-support.md](./features/mcp-servers-support.md) |
+| `cpt-cf-mini-chat-adr-mcp-deferred` — [ADR-0006](./ADR/0006-cpt-cf-mini-chat-adr-mcp-deferred.md) | MCP server support is deferred out of P1 | Not implemented |
 | `cpt-cf-mini-chat-adr-document-retrieval-scope` — [ADR-0007](./ADR/0007-cpt-cf-mini-chat-adr-document-retrieval-scope.md) | P1 scope of document processing and retrieval | Synchronous upload; document summary, chunk cap and deletion-time retrieval exclusion not implemented |
 | `cpt-cf-mini-chat-adr-quota-policy-scope` — [ADR-0008](./ADR/0008-cpt-cf-mini-chat-adr-quota-policy-scope.md) | P1 scope of quota, policy and licensing controls | Image quota, PolicySnapshot cache, knowledge-search iteration billing not implemented; interim license gate |
 | `cpt-cf-mini-chat-adr-data-lifecycle-audit-scope` — [ADR-0009](./ADR/0009-cpt-cf-mini-chat-adr-data-lifecycle-audit-scope.md) | P1 scope of data retention, chat deletion and audit content | Hard-purge, full audit content and chat-deletion audit not implemented |
@@ -173,7 +173,7 @@ Conversations are strictly linear sequences of turns. P1 does not support branch
 
 - [ ] `p1` - **ID**: `cpt-cf-mini-chat-constraint-openai-compatible`
 
-The original P1 constraint (OpenAI or Azure OpenAI only) is relaxed by [ADR-0005](./ADR/0005-cpt-cf-mini-chat-adr-multi-provider-adapters.md). Providers are configured as `providers.<id>` entries; each entry selects one of four in-process adapters (`openai_responses`, `openai_chat_completions`, `vllm_responses`, `anthropic_messages`), and each catalog model names its `provider_id`. The gear registers the OAGW upstream and route for every entry at startup. File and vector-store operations go to a storage-capable provider (`storage_kind` = `openai` or `azure`); an entry without its own file API (Anthropic) names one via `rag_provider`. Anthropic-specific behaviour: [features/anthropic-provider-support.md](./features/anthropic-provider-support.md).
+The original P1 constraint (OpenAI or Azure OpenAI only) is relaxed by [ADR-0005](./ADR/0005-cpt-cf-mini-chat-adr-multi-provider-adapters.md). Providers are configured as `providers.<id>` entries; each entry selects one of four in-process adapters (`openai_responses`, `openai_chat_completions`, `vllm_responses`, `anthropic_messages`), and each catalog model names its `provider_id`. The gear registers the OAGW upstream and route for every entry at startup. File and vector-store operations go to a storage-capable provider (`storage_kind` = `openai` or `azure`); an entry without its own file API (Anthropic) names one via `rag_provider`. Anthropic-specific behaviour is covered by the Anthropic Messages adapter (`infra/llm/providers/anthropic_messages.rs`).
 
 **Provider parity notes** (Azure OpenAI known limitations at time of writing):
 - Azure supports only **one vector store** per `file_search` tool call (sufficient for P1: one vector store per chat).
@@ -582,11 +582,11 @@ For automatic thread summary work, the serialized thread-summary outbox payload 
 
 - [ ] `p1` - **ID**: `cpt-cf-mini-chat-component-mcp-pool`
 
-- **McpPool** — Not implemented — see [ADR-0006](./ADR/0006-cpt-cf-mini-chat-adr-mcp-deferred.md). The planned design is in [features/mcp-servers-support.md](./features/mcp-servers-support.md).
+- **McpPool** — Not implemented — see [ADR-0006](./ADR/0006-cpt-cf-mini-chat-adr-mcp-deferred.md).
 
 - [ ] `p1` - **ID**: `cpt-cf-mini-chat-component-mcp-service`
 
-- **McpService** — Not implemented — see [ADR-0006](./ADR/0006-cpt-cf-mini-chat-adr-mcp-deferred.md). The planned design is in [features/mcp-servers-support.md](./features/mcp-servers-support.md).
+- **McpService** — Not implemented — see [ADR-0006](./ADR/0006-cpt-cf-mini-chat-adr-mcp-deferred.md).
 
 - [ ] `p1` - **ID**: `cpt-cf-mini-chat-component-orphan-watchdog`
 
@@ -791,7 +791,7 @@ Upload is synchronous: within the request the file is uploaded to the RAG provid
 | Unknown chat, another user's chat or a soft-deleted chat (checked before the body is read) | 404 | `not_found`, `context.resource_type = gts.cf.core.mini_chat.chat.v1~` |
 | The chat's model is no longer in the catalog (checked before the body is read) | 400 | `invalid_argument`, `field_violations[model].reason = INVALID_MODEL` |
 | No boundary in `Content-Type`, unreadable multipart body, no `file` field, `file` part without a content type | 400 | `invalid_argument`, `field_violations[].reason`: `BOUNDARY_REQUIRED` (`content_type`), `MULTIPART_ERROR` (`multipart`), `MISSING_FILE` (`file`), `MISSING_CONTENT_TYPE` (`content_type`) |
-| File larger than `min(rag.uploaded_file_max_size_kb, model max_file_size_mb)` / `min(rag.uploaded_image_max_size_kb, model max_file_size_mb)` | 400 | `out_of_range`, `FILE_TOO_LARGE` |
+| File larger than `min(rag.uploaded_file_max_size_kb, model max_file_size_mb)` / `min(rag.uploaded_image_max_size_kb, model max_file_size_mb)` | 400 | `out_of_range`, `field_violations[content_length].reason = FILE_TOO_LARGE` |
 | Unsupported MIME type | 400 | `invalid_argument`, `UNSUPPORTED_CONTENT_TYPE` |
 | Code-interpreter-only file (XLSX) while code interpreter is unavailable | 400 | `invalid_argument` |
 | Image upload while `disable_images` is on | 400 | `failed_precondition`, `violations[{subject: images, type: FEATURE_DISABLED}]` |
@@ -1084,7 +1084,7 @@ data: {"items": [{"source": "file", "title": "Q3 Report.pdf", "attachment_id": "
 | `items[].snippet` | string | Excerpt. Web citations: the annotation text, or the answer text in the annotation range. The range is applied as character offsets into the `output_text` part that carries the annotation; a range outside that text gives an empty snippet. OpenAI file citations: always `""`. |
 | `items[].score` | number (optional) | Relevance score (0-1). Not populated in P1 (never serialized). |
 
-**Provider identifier non-exposure invariant**: no provider-issued identifier — including `provider_file_id`, `provider_response_id`, `vector_store_id`, provider correlation IDs, or any other provider-scoped ID — MUST appear in any API response body, SSE event payload, or error message. This includes error message text: provider error messages that contain provider-scoped IDs MUST be sanitized or replaced with a generic message before being returned to clients. Internal systems (DB columns, structured logs, audit events, operator tooling) may store and reference these identifiers, but they MUST NOT be returned to public clients. All client-visible identifiers are internal UUIDs only (`chat_id`, `turn_id`, `request_id`, `attachment_id`, `message_id`).
+**Provider identifier non-exposure invariant**: no provider-issued identifier — including `provider_file_id`, `provider_response_id`, `vector_store_id`, provider correlation IDs, or any other provider-scoped ID — MUST appear in any API response body, SSE event payload, or error message. This includes error message text: provider error messages that contain provider-scoped IDs MUST be sanitized or replaced with a generic message before being returned to clients. Sanitization replaces each recognized ID with the literal placeholder `[provider_id]`, leaving the rest of the message intact; recognized shapes are response/completion ids (`resp_`, `chatcmpl-`, `cmpl-`, `msg_`, any length) and file/vector-store/assistant ids (`file-`, `file_`, `assistant-`, `vs_`, 12 or more characters after the prefix) (`sanitize_provider_message` in `infra/llm/mod.rs`). Internal systems (DB columns, structured logs, audit events, operator tooling) may store and reference these identifiers, but they MUST NOT be returned to public clients. All client-visible identifiers are internal UUIDs only (`chat_id`, `turn_id`, `request_id`, `attachment_id`, `message_id`).
 
 P1: `citations` is sent once near stream completion, before `done`, only on a normally completed stream with at least one mapped citation. A provider `incomplete` response sends no `citations` event. Citations are not persisted, so an idempotent replay does not send them ([ADR-0010](./ADR/0010-cpt-cf-mini-chat-adr-runtime-consistency-limitations.md)). The contract supports multiple `citations` events per stream for future use. When web search contributes to the response, citations with `source: "web"` include `url`, `title`, and `snippet`. File citations carry `attachment_id`, the attachment filename as `title`, an empty `snippet` and no `span`.
 
@@ -1203,7 +1203,7 @@ Provider-specific streaming events are internal to `llm_provider` and the domain
 | Chat Completions, vLLM Responses and Anthropic Messages wire events | same SSE events | Each adapter maps its own wire events to the same internal events; this table shows the OpenAI Responses API names. |
 | `response.failed` | `event: error` (`code: "provider_error"`) | The error is read from `response.error`, with a top-level `error` as fallback. `message` is the sanitized provider message. `response.usage`, when present, is kept on the failed terminal outcome, and the turn settles on it when `has_known_usage` holds (section 5.7). |
 | `error` (SSE event) | `event: error` (`code: "provider_error"`) | Parsed like `response.failed`, then as flat `{code, message}`; unparseable data becomes the message. The provider code and message are kept internally; the client `message` is the sanitized provider message. |
-| Provider HTTP error / disconnect | `event: error` (`code: "provider_error"` or `"provider_timeout"`) | Error details sanitized (provider file, assistant and `vs_` identifiers are scrubbed); provider internals not exposed. |
+| Provider HTTP error / disconnect | `event: error` (`code: "provider_error"` or `"provider_timeout"`) | Error details sanitized (provider-issued ids — `resp_`, `chatcmpl-`, `cmpl-`, `msg_`, `file-`, `file_`, `assistant-`, `vs_` — replaced with `[provider_id]`, see the Provider identifier non-exposure invariant above); provider internals not exposed. |
 | Provider 429 | `event: error` (`code: "rate_limited"`) | OAGW does not retry; the provider's 429 is passed through and mapped directly. |
 
 This mapping is intentionally provider-agnostic in the stable contract. If the provider changes its event format or a new provider is added, only the translation layer in `llm_provider` is updated. The client contract remains unchanged.
@@ -1239,7 +1239,7 @@ The mapping is implemented in `api/rest/error.rs`:
 | `DELETE /chats/{id}`: the chat-cleanup outbox payload exceeds the outbox size limit (`OutboxError::PayloadTooLarge`) | `invalid_argument` | 400 | `detail`; the same message is also in `context.format`. The same failure on attachment `DELETE` and on turn retry, edit and delete is returned as 500 `internal` |
 | Image on a model without vision | `invalid_argument` | 400 | `VISION_NOT_SUPPORTED` (was 415) |
 | Invalid, duplicate, foreign or not-ready `attachment_ids`, or more than `rag.max_documents_per_chat + rag.max_images_per_message` of them | `invalid_argument` | 400 | `field_violations[attachment].reason = invalid_attachment` |
-| Upload larger than the limit | `out_of_range` | 400 | `FILE_TOO_LARGE` (was 413). A body above api-gateway `defaults.body_limit_bytes` (default 16 MiB) gets 413 from the gateway before it reaches mini-chat |
+| Upload larger than the limit | `out_of_range` | 400 | `field_violations[content_length].reason = FILE_TOO_LARGE` (was 413). A body above api-gateway `defaults.body_limit_bytes` (default 16 MiB) gets 413 from the gateway before it reaches mini-chat |
 | Too many images in one message | `out_of_range` | 400 | `TOO_MANY_IMAGES` |
 | Message exceeds `max_input_tokens` | `out_of_range` | 400 | `INPUT_TOO_LONG` |
 | Mandatory context does not fit the budget | `out_of_range` | 400 | `CONTEXT_BUDGET_EXCEEDED` |
@@ -1275,7 +1275,7 @@ Codes sent in the SSE `event: error` payload (`{code, message}`) after the strea
 
 | Code | Emitted when | Turn state |
 |---|---|---|
-| `provider_error` | Provider returned a non-429 error, an invalid response, is unavailable, or the provider stream failed. For a provider error (`response.failed`, SSE `error` event, error body) `message` is the sanitized provider message | `failed` |
+| `provider_error` | Provider returned a non-429 error, an invalid response, is unavailable, or the provider stream failed. For a provider error (`response.failed`, SSE `error` event, error body) `message` is the sanitized provider message. Two "invalid response" cases worth calling out by name: the provider's own event stream ending with no terminal event at all (`message: "stream ended without terminal event"` — a provider protocol failure, unlike `stream_interrupted` below, which is this server's own task being interrupted), and a `function_call` output item whose `arguments` are not valid JSON (`message: "function_call arguments were not valid JSON: {parse error}"`); the arguments are parsed, and this check runs, before the tool name is matched against `unexpected_tool_use` | `failed` |
 | `provider_timeout` | Provider request timed out: a gateway timeout, or the gateway's own HTTP 504 `deadline_exceeded` Problem. A provider's own HTTP 504 with its JSON error body is `provider_error` | `failed` |
 | `rate_limited` | Provider returned 429. `message` is `Rate limited by provider; retry in {N}s` when the provider sent a numeric `Retry-After`, otherwise `Rate limited by provider` | `failed` |
 | `web_search_calls_exceeded` | The model started more `web_search` calls than `quota.web_search_max_calls_per_message` in one turn | `failed` |
@@ -1462,7 +1462,7 @@ For Azure, the `api-version` query parameter comes from `api_path` (chat) or `ap
 
 #### External MCP Servers
 
-Not implemented — see [ADR-0006](./ADR/0006-cpt-cf-mini-chat-adr-mcp-deferred.md). The planned MCP transport design is in [features/mcp-servers-support.md](./features/mcp-servers-support.md).
+Not implemented — see [ADR-0006](./ADR/0006-cpt-cf-mini-chat-adr-mcp-deferred.md).
 
 #### PostgreSQL / SQLite
 
@@ -2487,19 +2487,19 @@ Alternative naming (NOT in P1):
 
 - [ ] `p1` - **ID**: `cpt-cf-mini-chat-dbtable-mcp-servers`
 
-Not implemented — see [ADR-0006](./ADR/0006-cpt-cf-mini-chat-adr-mcp-deferred.md). No migration creates `mcp_servers`. The planned schema is in [features/mcp-servers-support.md](./features/mcp-servers-support.md#mcp-tables).
+Not implemented — see [ADR-0006](./ADR/0006-cpt-cf-mini-chat-adr-mcp-deferred.md). No migration creates `mcp_servers`.
 
 #### Table: mcp_server_tools
 
 - [ ] `p1` - **ID**: `cpt-cf-mini-chat-dbtable-mcp-server-tools`
 
-Not implemented — see [ADR-0006](./ADR/0006-cpt-cf-mini-chat-adr-mcp-deferred.md). No migration creates `mcp_server_tools`. The planned schema is in [features/mcp-servers-support.md](./features/mcp-servers-support.md#mcp-tables).
+Not implemented — see [ADR-0006](./ADR/0006-cpt-cf-mini-chat-adr-mcp-deferred.md). No migration creates `mcp_server_tools`.
 
 #### Table: role_mcp_servers
 
 - [ ] `p1` - **ID**: `cpt-cf-mini-chat-dbtable-role-mcp-servers`
 
-Not implemented — see [ADR-0006](./ADR/0006-cpt-cf-mini-chat-adr-mcp-deferred.md). No migration creates `role_mcp_servers`. The planned schema is in [features/mcp-servers-support.md](./features/mcp-servers-support.md#mcp-tables).
+Not implemented — see [ADR-0006](./ADR/0006-cpt-cf-mini-chat-adr-mcp-deferred.md). No migration creates `role_mcp_servers`.
 
 #### Projection Table: tenant_closure
 
@@ -3043,6 +3043,8 @@ All values are those of the effective model's catalog entry (`context_window`, `
 | Droppable | Thread summary | Dropped if it doesn't fit after mandatory items. |
 | Truncatable | Recent messages (whole turns), then the thread summary | Oldest whole turns are dropped first; the thread summary is dropped if it does not fit after the mandatory items. Retrieval excerpts are not part of the assembled context. There is no document-summary tier. |
 
+**Thread summary delivery format**: when kept, the thread summary is sent to the LLM as a single `user`-role message (not `system`), with a fixed preamble prepended to the stored summary text: `"This conversation has earlier messages that have been summarized. The summary below covers the earlier portion of the conversation. Recent messages follow after.\n\n"` (`SUMMARY_PREAMBLE` in `context_assembly.rs`). The preamble's byte length counts toward the thread summary's estimated token size for budget purposes.
+
 **Algorithm** (step by step):
 
 Each item is estimated with the effective model's `estimation_budgets` (`estimate_item_tokens`: bytes / `bytes_per_token_conservative` + `fixed_overhead_tokens`, plus `safety_margin_pct`; `image_token_budget` per current image). No provider tokenizer is used.
@@ -3432,7 +3434,7 @@ Knowledge search lets the model query an organization-level knowledge base (one 
 
 - [ ] `p1` - **ID**: `cpt-cf-mini-chat-design-mcp-servers`
 
-**Not implemented (Future)** — see [ADR-0006](./ADR/0006-cpt-cf-mini-chat-adr-mcp-deferred.md). There is no MCP client, tool injection, registry, admin API, table or configuration in the gear; the only trace is the unused catalog flag `ModelToolSupport.mcp`. The planned design (client layer, tool discovery, agentic-loop extension, provisioning, security, configuration, phases) is kept in [features/mcp-servers-support.md](./features/mcp-servers-support.md).
+**Not implemented (Future)** — see [ADR-0006](./ADR/0006-cpt-cf-mini-chat-adr-mcp-deferred.md). There is no MCP client, tool injection, registry, admin API, table or configuration in the gear; the only trace is the unused catalog flag `ModelToolSupport.mcp`.
 
 ### Model Catalog Configuration
 
@@ -6480,18 +6482,15 @@ Not implemented in P1 and recorded in ADRs:
   - `cpt-cf-mini-chat-adr-runtime-consistency-limitations` — [ADR-0010](./ADR/0010-cpt-cf-mini-chat-adr-runtime-consistency-limitations.md) - Accepted runtime and consistency limitations in P1
 - **Platform dependencies**:
   - [Authorization Design](../../../docs/arch/authorization/DESIGN.md) - PDP/PEP model, predicate types, fail-closed rules, constraint compilation
-- **Features**: [features/](./features/) — [Anthropic provider support](./features/anthropic-provider-support.md), [MCP servers support (not implemented)](./features/mcp-servers-support.md)
-- **Internal**: [Outbox Pattern](features/outbox-pattern.md) — transactional outbox pattern specification (P1)
 
 ---
 
 ## References
 
 ### Internal
-- [Outbox Pattern](features/outbox-pattern.md) — transactional outbox pattern specification (P1)
 
 ### External
-- [Model Context Protocol specification](https://modelcontextprotocol.io/specification) — MCP protocol (JSON-RPC 2.0, HTTP Streamable transport); relevant to the deferred [MCP feature](./features/mcp-servers-support.md) only
+- [Model Context Protocol specification](https://modelcontextprotocol.io/specification) — MCP protocol (JSON-RPC 2.0, HTTP Streamable transport); relevant to the deferred MCP feature only
 
 ---
 
@@ -7040,7 +7039,7 @@ All token estimates (preflight reserve, `INPUT_TOO_LONG` check, context-assembly
 
 ## B.7.1 MCP servers configuration (P2)
 
-**Not implemented** — see [ADR-0006](./ADR/0006-cpt-cf-mini-chat-adr-mcp-deferred.md). No `mcp.*` key exists; because `MiniChatConfig` uses `deny_unknown_fields`, a config containing `mcp` fails startup. The planned keys are listed in [features/mcp-servers-support.md](./features/mcp-servers-support.md). The catalog flag `tool_support.mcp` is parsed and unused.
+**Not implemented** — see [ADR-0006](./ADR/0006-cpt-cf-mini-chat-adr-mcp-deferred.md). No `mcp.*` key exists; because `MiniChatConfig` uses `deny_unknown_fields`, a config containing `mcp` fails startup. The catalog flag `tool_support.mcp` is parsed and unused.
 
 ## B.8 Uploads / Attachments / Images
 
