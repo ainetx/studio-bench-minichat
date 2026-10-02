@@ -16,7 +16,7 @@ Gears span three broad categories:
 
 See also:
 - [WHY_GEARS](docs/WHY_GEARS.md) explaining why to chose Rust/Gears for your XaaS project.
-- [OVERVIEW](docs/slides/1_OVERVIEW.md) HTML slides explaining the key Constructor Fabric Gears concepts.
+- OVERVIEW HTML slides explaining the key Constructor Fabric Gears concepts.
 - [GEARS](docs/GEARS.md) for gears overview.
 
 **Five defining Gears characteristics:**
@@ -268,7 +268,7 @@ cargo install cargo-llvm-cov                    # coverage backend (or run `make
 ```
 
 For the complete test strategy, coverage policy, CI pipeline details, and all
-available commands see **[docs/TESTING.md](docs/TESTING.md)**.
+available commands see **docs/TESTING.md**.
 
 ## Contributing
 
