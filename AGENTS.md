@@ -1,7 +1,4 @@
-
 These instructions are for AI assistants working in this project.
-
-If the instruction sounds unclear, vague or requires more context. Ask for clarification.
 
 Always open `@/guidelines/README.md` first (entry point for project-wide guidelines).
 
