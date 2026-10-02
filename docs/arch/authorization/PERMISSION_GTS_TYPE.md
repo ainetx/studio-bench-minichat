@@ -52,15 +52,15 @@ The right-hand segment encodes the declaring gear's ownership (`<vendor>.<packag
 
 Examples:
 
-- `gts.cf.toolkit.authz.permission.v1~cf.mini_chat._.chat_read.v1`
+- `gts.cf.toolkit.authz.permission.v1~cf.example_chat._.chat_read.v1`
 - `gts.cf.toolkit.authz.permission.v1~cf.am._.tenant_create.v1`
-- `gts.cf.toolkit.authz.permission.v1~cf.mini_chat._.retry_turn.v1`
+- `gts.cf.toolkit.authz.permission.v1~cf.example_chat._.retry_turn.v1`
 
 ## `resource_type` Semantics
 
 The `resource_type` field accepts a **GTS expression**. Three forms are permitted, in order of specificity:
 
-1. **Concrete GTS Type Identifier** — `gts.cf.core.ai_chat.chat.v1~cf.core.mini_chat.chat.v1~`. Matches exactly that type and (per GTS §3.6 implicit derived-type coverage) anything derived from it. Note the trailing `~` marking this as a GTS Type Identifier, not a GTS Instance Identifier.
+1. **Concrete GTS Type Identifier** — `gts.cf.core.ai_chat.chat.v1~cf.core.example_chat.chat.v1~`. Matches exactly that type and (per GTS §3.6 implicit derived-type coverage) anything derived from it. Note the trailing `~` marking this as a GTS Type Identifier, not a GTS Instance Identifier.
 2. **Wildcard pattern (GTS §3.5)** — `gts.cf.core.am.tenant.*`, `gts.cf.toolkit.plugins.plugin.v1~cf.*`. Matches any concrete ID within the wildcarded subtree. Evaluation follows the matching semantics documented in GTS §3.6.
 3. **Query Language predicates (GTS §3.3)** — `gts.cf.core.ai_chat.chat.v1~[category='support']`. Allows ABAC-style attribute constraints. PEPs must advertise the filtered attribute (e.g. `category`) in their `supported_properties`, otherwise evaluation is fail-closed per [DESIGN.md](./DESIGN.md) rule #9.
 
@@ -72,14 +72,14 @@ The `resource_type` field accepts a **GTS expression**. Three forms are permitte
 
 ```json
 {
-  "id": "gts.cf.toolkit.authz.permission.v1~cf.mini_chat._.chat_read.v1",
-  "resource_type": "gts.cf.core.ai_chat.chat.v1~cf.core.mini_chat.chat.v1~",
+  "id": "gts.cf.toolkit.authz.permission.v1~cf.example_chat._.chat_read.v1",
+  "resource_type": "gts.cf.core.ai_chat.chat.v1~cf.core.example_chat.chat.v1~",
   "action": "read",
   "display_name": "Read chat"
 }
 ```
 
-Matches every mini-chat chat. The PDP returns `decision: true` and tenant/owner scoping constraints from other policy axes (tenant hierarchy, resource-group membership, etc. — see [DESIGN.md](./DESIGN.md)).
+Matches every example-chat chat. The PDP returns `decision: true` and tenant/owner scoping constraints from other policy axes (tenant hierarchy, resource-group membership, etc. — see [DESIGN.md](./DESIGN.md)).
 
 ### Scenario B — Wildcard across a vendor/package (GTS §3.5)
 
@@ -98,7 +98,7 @@ Matches any tenant type under `gts.cf.core.am.tenant.*`. Good for coarse admin p
 
 ```json
 {
-  "id": "gts.cf.toolkit.authz.permission.v1~cf.mini_chat._.chat_support_read.v1",
+  "id": "gts.cf.toolkit.authz.permission.v1~cf.example_chat._.chat_support_read.v1",
   "resource_type": "gts.cf.core.ai_chat.chat.v1~[category='support']",
   "action": "read",
   "display_name": "Read support chats"
@@ -111,8 +111,8 @@ Built-in AuthZ plugin compiles the `[category='support']` predicate into a PEP c
 
 ```json
 {
-  "id": "gts.cf.toolkit.authz.permission.v1~cf.mini_chat._.retry_turn.v1",
-  "resource_type": "gts.cf.core.ai_chat.chat.v1~cf.core.mini_chat.chat.v1~",
+  "id": "gts.cf.toolkit.authz.permission.v1~cf.example_chat._.retry_turn.v1",
+  "resource_type": "gts.cf.core.ai_chat.chat.v1~cf.core.example_chat.chat.v1~",
   "action": "retry_turn",
   "display_name": "Retry chat turn"
 }
@@ -146,16 +146,16 @@ No edit to a central list is ever needed — adding a new `#[gts_type_schema(...
 Gears that define permissions depend on `cf-gears-toolkit-gts` directly and declare each permission with the typed form of the `gts_instance!` macro. The macro takes a single `AuthzPermissionV1` struct literal with the full Instance Identifier as the `id` field's string literal; the upstream macro emits a compile-time assertion that the literal's prefix matches `<AuthzPermissionV1 as GtsSchema>::SCHEMA_ID` exactly, so a typo in the prefix is a build error rather than a silent runtime mismatch. The wrapper additionally emits an `inventory::submit!` block that lands in the process-wide `InventoryInstance` collector consumed by `types-registry::init()` — no gear-side registration code, no `types-registry-sdk` dependency, and no ordering coupling with the declaring gear's own `init()`.
 
 ```rust
-// gears/mini-chat/mini-chat/src/gts/permissions.rs
+// gears/example-chat/example-chat/src/gts/permissions.rs
 use crate::domain::service::actions;
 use toolkit_gts::{AuthzPermissionV1, gts_instance};
 
 const CHAT_RESOURCE_TYPE_WILDCARD: &str =
-    "gts.cf.core.ai_chat.chat.v1~cf.core.mini_chat.chat.*";
+    "gts.cf.core.ai_chat.chat.v1~cf.core.example_chat.chat.*";
 
 gts_instance! {
     AuthzPermissionV1 {
-        id: "gts.cf.toolkit.authz.permission.v1~cf.mini_chat._.chat_read.v1",
+        id: "gts.cf.toolkit.authz.permission.v1~cf.example_chat._.chat_read.v1",
         resource_type: CHAT_RESOURCE_TYPE_WILDCARD.to_owned(),
         action: actions::READ.to_owned(),
         display_name: "Read chat".to_owned(),
@@ -181,7 +181,7 @@ The struct literal must contain exactly one of `id` / `gts_id` / `gtsId` as a st
 
 - **AuthZ Management Gear.** Full data model for storing grants (identity → permission bindings), role types, role hierarchies, and binding APIs. Covered by a future design.
 - **Built-in AuthZ plugin.** The PDP implementation that evaluates permission Instances against subject/action/resource requests. Out of scope for the base-type spec.
-- **Gear migration.** Walking every existing gear (mini-chat, users-info, etc.) and converting its hard-coded `resources::*` / `actions::*` constants into registered permission Instances is a separate per-gear task.
+- **Gear migration.** Walking every existing gear (users-info, etc.) and converting its hard-coded `resources::*` / `actions::*` constants into registered permission Instances is a separate per-gear task.
 - **`x-gts-traits`** for per-permission evaluation metadata (risk level, MFA-required, audit category). Added when a concrete consumer needs it.
 - **Additional Type Schema fields** (`description`, `category`, `implies`, `deprecated`) deferred until driven by a concrete use case.
 - **GTS §3.4 Attribute selector** in `resource_type`. Semantically wrong for describing a *set* of resources; kept for single-value reads from bound Instances.
