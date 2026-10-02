@@ -634,7 +634,7 @@ Covers public API from PRD: `cpt-cf-mini-chat-interface-public-api`
 | `DELETE` | `/v1/chats/{id}/messages/{msg_id}/reaction` | Remove reaction from an assistant message | stable |
 | `GET` | `/v1/quota/status` | Per-tier, per-period quota status for the current user | stable |
 
-MCP endpoints (`/v1/mcp-servers*`, `/v1/admin/roles/*/mcp-servers*`, `/v1/chats/{id}/mcp-tools/effective`, `/v1/mcp-connections:complete`) are not implemented; see [ADR-0006](./ADR/0006-cpt-cf-mini-chat-adr-mcp-deferred.md). All paths are served under the gear URL prefix (`url_prefix`, default `/mini-chat`). The generated OpenAPI document is the reference for request and response schemas.
+MCP endpoints (`/v1/mcp-servers*`, `/v1/admin/roles/*/mcp-servers*`, `/v1/chats/{id}/mcp-tools/effective`, `/v1/mcp-connections:complete`) are not implemented; see [ADR-0006](./ADR/0006-cpt-cf-mini-chat-adr-mcp-deferred.md). All paths are served under the gear URL prefix (`url_prefix`, default `/mini-chat`). The generated OpenAPI (`docs/api/api.json` at the repository root) is the reference for request and response schemas.
 
 **Create Chat** (`POST /v1/chats`):
 
