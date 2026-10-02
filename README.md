@@ -32,6 +32,7 @@ See also:
 5. **Extensible domain model via Global Type System** — Gears expose extensible domain objects whose metadata and types are customizable through [GTS](https://github.com/globaltypesystem/gts-spec) — define new event types, user settings, LLM model attributes, etc. CRUD API handlers support customization via hooks and callbacks as serverless functions and workflows.
 
 **Engineering principles:**
+- **Spec-Driven Development**: [Specification templates](docs/spec-templates/README.md) (PRD, Design, ADR, Feature) define what gets built *before* code is written. Every gear is well documented.
 - **Shift Left**: Custom architecture lints (via `cargo gears lint`) enforce design rules at compile time, alongside Clippy, [tests](#testing), fuzzing, and security audits in CI
 - **Quality First**: 90%+ test coverage target with unit, integration, E2E, performance, and security testing
 - **Core in Rust**: Compile-time safety, deep static analysis including project-specific lints, so more issues are prevented before review/runtime
@@ -45,7 +46,7 @@ See also [REPO_PLAYBOOK](docs/REPO_PLAYBOOK.md) with the registry of repository-
 
 ### Prerequisites and installation
 
-See [SETUP.md](SETUP.md) for clean-install and run instructions for macOS, Linux, and Windows. It covers Rust and Cargo through rustup, native build prerequisites, and `make setup`.
+See [SETUP.md](SETUP.md) for clean-install and run instructions for macOS, Linux, and Windows. It covers Rust and Cargo through rustup, native build prerequisites, `make setup`, and optional Constructor Studio installation.
 
 A MariaDB, PostgreSQL, SQLite, or in-memory database is required for the corresponding runtime configuration.
 

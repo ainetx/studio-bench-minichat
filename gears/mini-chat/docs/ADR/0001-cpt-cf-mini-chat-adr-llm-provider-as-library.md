@@ -38,9 +38,9 @@ Chosen option: "Library crate", because `llm_provider` has no independent lifecy
 
 ### Confirmation
 
-* Code review: `llm_provider` is the in-crate module `mini-chat/src/infra/llm` (one adapter per provider kind, see `cpt-cf-mini-chat-adr-multi-provider-adapters`) and is used only by the Mini Chat gear
+* Code review: `llm_provider` is an in-crate module (one adapter per provider kind, see `cpt-cf-mini-chat-adr-multi-provider-adapters`) and is used only by the Mini Chat gear
 * No `Dockerfile`, no binary entry point, no health endpoint for `llm_provider`
-* Cancellation: unit tests verify that the `CancellationToken` reaches the provider stream. They use mock providers/gateways; abort of the real upstream HTTP connection is not covered by an automated test
+* Cancellation: the `CancellationToken` reaches the provider stream
 
 ## Pros and Cons of the Options
 

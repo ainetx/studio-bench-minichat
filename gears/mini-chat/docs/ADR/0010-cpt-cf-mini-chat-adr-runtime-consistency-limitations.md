@@ -51,8 +51,8 @@ Chosen option: "Accept the current behaviour, document it and state what it reli
 
 ### Confirmation
 
-* Unit tests cover the stale-progress fallback to `started_at`.
-* Unit tests pin the replay event set (`stream_started`, `delta`, `done`) and the rebuilt downgrade fields.
+* The orphan scan treats a NULL `last_progress_at` as `started_at`.
+* Replay sends `stream_started`, `delta` and `done` only, and rebuilds `quota_decision` and `downgrade_from`.
 
 ## More Information
 

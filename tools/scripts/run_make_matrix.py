@@ -22,7 +22,7 @@ Notes:
   - The repo does not define a top-level ``make clean`` target, so reset
     steps use CLEAN_CMD.
   - The runner continues after failures and prints a summary at the end.
-  - Long-running server targets like ``make run``
+  - Long-running server targets like ``make run`` and ``make mini-chat``
     are intentionally excluded from presets.
 """
 

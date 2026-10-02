@@ -627,6 +627,8 @@ GEAR_HAS_SERVER_FEATURE := $(or $(filter $(GEAR),$(GEAR_SERVER_ALWAYS_LINKED)),$
 # The gear itself as an optional feature (empty if it's an always-linked gear).
 GEAR_SERVER_OPTIONAL_FEATURES := $(if $(GEAR_HAS_SERVER_FEATURE),$(filter-out $(GEAR_SERVER_ALWAYS_LINKED),$(GEAR)),)
 # Extra local-dev plugins a gear needs to start (GEAR_SERVER_EXTRA_FEATURES_<gear>).
+# mini-chat registers OAGW upstreams whose secret_ref OAGW checks in credstore.
+GEAR_SERVER_EXTRA_FEATURES_mini-chat ?= static-credstore
 GEAR_SERVER_EXTRA_FEATURES := $(GEAR_SERVER_EXTRA_FEATURES_$(GEAR))
 GEAR_SERVER_FEATURES ?= $(GEAR_SERVER_OPTIONAL_FEATURES)$(if $(GEAR_SERVER_OPTIONAL_FEATURES),$(COMMA),)$(GEAR_SERVER_BASE_FEATURES)$(if $(GEAR_SERVER_EXTRA_FEATURES),$(COMMA)$(GEAR_SERVER_EXTRA_FEATURES),)
 GEAR_SERVER_FEATURE_ARGS := $(if $(GEAR),$(if $(GEAR_HAS_SERVER_FEATURE),--no-default-features --features $(GEAR_SERVER_FEATURES),),$(EXAMPLE_SERVER_FEATURE_ARGS))
@@ -1143,9 +1145,20 @@ fuzz-corpus: fuzz-install
 	fi
 	cargo +nightly fuzz cmin --fuzz-dir tools/fuzz $(FUZZ_TARGET)
 
+# -------- Mini chat --------
+
+# The mini-chat target runs the mini-chat gear locally.
+
+.PHONY: mini-chat
+
+# Run server with mini-chat gear
+mini-chat:
+	$(call print_target_banner)
+	cargo run --bin $(EXAMPLE_SERVER_BIN) --features mini-chat,static-authn,static-authz,single-tenant,static-credstore,otel -- --config config/mini-chat.yaml run
+
 # -------- Main targets --------
 
-.PHONY: all dist check gear-ci ci ci_test ci_docs build build-debug .cargo-build .split-debug quickstart example full-make-matrix
+.PHONY: all dist check gear-ci ci ci_test ci_docs build build-debug .cargo-build .split-debug quickstart example mini-chat full-make-matrix
 
 # Start server with quickstart config
 quickstart:

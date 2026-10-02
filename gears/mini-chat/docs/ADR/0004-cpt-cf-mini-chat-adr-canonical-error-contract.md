@@ -95,8 +95,8 @@ Chosen option: "Adopt the canonical `Problem` for REST, and keep `{code, message
 
 ### Confirmation
 
-* Unit tests pin the category, status and reason of the mappings they cover (not every variant has a dedicated test).
-* The E2E suite asserts `Problem.type` and the reason fields.
+* Each condition in the table maps to the category, HTTP status and reason that the table lists.
+* REST errors carry `Problem.type` and the reason fields.
 * The generated OpenAPI document is the reference for the response schemas.
 
 ## Pros and Cons of the Options

@@ -8,4 +8,4 @@ GTS schema storage service.
 
 ## Documentation
 
-- [PRD.md](docs/PRD.md)
+- PRD.md

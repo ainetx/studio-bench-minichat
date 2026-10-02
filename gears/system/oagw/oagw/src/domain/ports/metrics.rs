@@ -12,7 +12,7 @@
 //!
 //! ## Cardinality control
 //!
-//! Per [feature 0008](../../../../docs/features/0008-cpt-cf-oagw-feature-observability.md):
+//! Per feature 0008:
 //!
 //! - `host` is the upstream **alias** (not the raw `Host` header)
 //! - `path` is the route **match pattern** (not the raw request path)

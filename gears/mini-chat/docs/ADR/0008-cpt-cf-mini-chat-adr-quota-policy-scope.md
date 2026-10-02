@@ -49,8 +49,8 @@ The daily web-search and code-interpreter quotas **are** implemented. They rejec
 
 ### Confirmation
 
-* Unit tests cover tool-quota gating and the downgrade cascade, including per-candidate reserves. Unit tests cover the reserve re-check on send and retry/edit.
-* E2E tests cover 429, premium downgrade, `model_disabled`, the daily web-search and code-interpreter quotas and the quota status flags (usage is seeded per test user). Kill switches are fixed configuration of the E2E rig and are covered by unit tests.
+* Tool-quota gating and the downgrade cascade check the reserve of each candidate. Send and retry/edit re-check the reserve.
+* Quota enforcement includes 429, premium downgrade, `model_disabled`, the daily web-search and code-interpreter quotas and the quota status flags.
 
 ## More Information
 

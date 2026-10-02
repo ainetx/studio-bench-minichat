@@ -115,7 +115,7 @@ Long conversations are managed via thread summaries - a Level 1 compression stra
 └───────────────────────────────────────────────────────┘
 ```
 
-**Naming note**: "the domain service" in this document refers to the gear's domain service layer (business logic and PEP orchestration). "infra/storage" refers to the persistence layer in `infra/db` (SeaORM entities with `#[derive(Scopable)]` + ORM repository implementations).
+**Naming note**: "the domain service" in this document refers to the gear's domain service layer (business logic and PEP orchestration). "infra/storage" refers to the persistence layer (SeaORM entities with `#[derive(Scopable)]` + ORM repository implementations).
 
 **Terminology (normative)**:
 
@@ -129,7 +129,7 @@ Long conversations are managed via thread summaries - a Level 1 compression stra
 | Presentation | Public REST/SSE API, authentication, routing | Axum (platform api_gateway) |
 | API | REST handlers, SSE adapters, routes, DTOs, error→Problem mapping (RFC 9457) | Axum handlers, utoipa |
 | Domain | Business rules, orchestration, PEP (PolicyEnforcer), context assembly, streaming relay, quota checks; repository traits (ports) | Rust, `authz_resolver_sdk` |
-| Infrastructure | Persistence (`infra/db`: SeaORM entities with `#[derive(Scopable)]`, ORM repositories, migrations); LLM communication (`infra/llm`: `ProviderResolver` and `providers/` with the four adapter kinds `openai_responses`, `openai_chat_completions`, `vllm_responses`, `anthropic_messages`, plus `DispatchingFileStorage` / `DispatchingVectorStore`, Anthropic Files client, `AzureKnowledgeRetriever`); OAGW upstream and route provisioning; outbox enqueuer and handlers (`infra/workers/`); audit plugin gateway; model policy gateway (`infra/model_policy`); leader election (`infra/leader`); OpenTelemetry metrics exported over OTLP | SeaORM (Postgres or SQLite), `oagw_sdk::ServiceGatewayClientV1::proxy_request` (in-process), `toolkit_db::outbox` |
+| Infrastructure | Persistence (SeaORM entities with `#[derive(Scopable)]`, ORM repositories, migrations); LLM communication (`ProviderResolver` and one adapter for each of the four kinds `openai_responses`, `openai_chat_completions`, `vllm_responses`, `anthropic_messages`, plus `DispatchingFileStorage` / `DispatchingVectorStore`, Anthropic Files client, `AzureKnowledgeRetriever`); OAGW upstream and route provisioning; outbox enqueuer and handlers; audit plugin gateway; model policy gateway; leader election; OpenTelemetry metrics exported over OTLP | SeaORM (Postgres or SQLite), `oagw_sdk::ServiceGatewayClientV1::proxy_request` (in-process), `toolkit_db::outbox` |
 
 **MCP**: there is no MCP layer. MCP server support is not implemented; see [ADR-0006](./ADR/0006-cpt-cf-mini-chat-adr-mcp-deferred.md).
 
@@ -141,7 +141,7 @@ Long conversations are managed via thread summaries - a Level 1 compression stra
 
 - [ ] `p1` - **ID**: `cpt-cf-mini-chat-principle-tenant-scoped`
 
-Every data access is scoped by constraints issued by the AuthZ Resolver (PDP). At P1, chat content is owner-only: the PDP returns `eq` predicates on `owner_tenant_id` and `user_id` that the domain service (PEP, via PolicyEnforcer) compiles to `AccessScope` and applies as SQL WHERE clauses through Secure ORM (`#[derive(Scopable)]`). This replaces application-level tenant/user scoping with a formalized constraint model aligned with the platform's Authorization Design. Vector stores, file uploads, and quota checks all require tenant context. No API accepts or returns provider identifiers (`provider_file_id`, `vector_store_id`). Client-visible identifiers are internal UUIDs only (`attachment_id`, `chat_id`, etc.).
+Every data access is scoped by constraints issued by the AuthZ Resolver (PDP). At P1, chat content is owner-only: the PDP returns `eq` predicates on `owner_tenant_id` and `user_id` that the domain service (PEP, via PolicyEnforcer) compiles to `AccessScope` and applies as SQL WHERE clauses through Secure ORM (`#[derive(Scopable)]`). This replaces application-level tenant/user scoping with a formalized constraint model aligned with the platform's [Authorization Design](../../../docs/arch/authorization/DESIGN.md). Vector stores, file uploads, and quota checks all require tenant context. No API accepts or returns provider identifiers (`provider_file_id`, `vector_store_id`). Client-visible identifiers are internal UUIDs only (`attachment_id`, `chat_id`, etc.).
 
 #### Owner-Only Chat Content
 
@@ -396,7 +396,7 @@ graph TB
 
 - [ ] `p1` - **ID**: `cpt-cf-mini-chat-component-llm-provider`
 
-- **llm_provider** — Library residing in `infra/llm/` within the gear (not a standalone service; [ADR-0001](./ADR/0001-cpt-cf-mini-chat-adr-llm-provider-as-library.md)). `ProviderResolver` maps a catalog model's `provider_id` (and the tenant, via `tenant_overrides`) to a `providers.<id>` entry and its OAGW upstream alias. The adapter is selected by `ProviderKind` ([ADR-0005](./ADR/0005-cpt-cf-mini-chat-adr-multi-provider-adapters.md)):
+- **llm_provider** — Library inside the gear (not a standalone service; [ADR-0001](./ADR/0001-cpt-cf-mini-chat-adr-llm-provider-as-library.md)). `ProviderResolver` maps a catalog model's `provider_id` (and the tenant, via `tenant_overrides`) to a `providers.<id>` entry and its OAGW upstream alias. The adapter is selected by `ProviderKind` ([ADR-0005](./ADR/0005-cpt-cf-mini-chat-adr-multi-provider-adapters.md)):
   - `openai_responses` — OpenAI and Azure OpenAI Responses API;
   - `openai_chat_completions` — Chat Completions API;
   - `vllm_responses` — vLLM Responses API;
@@ -412,7 +412,7 @@ graph TB
 
 - **Audit plugin and audit outbox** — Audit events are enqueued in the finalization or mutation transaction to the outbox queue `outbox.audit_queue_name` (default `mini-chat.audit`). `AuditEventHandler` deserializes the payload first: a corrupt payload is rejected (dead-lettered) whether or not a plugin is available. It then delivers the event through `AuditGateway` to the audit plugin resolved via types-registry (`MiniChatAuditPluginClientV1`); the bundled `static_audit` plugin logs them. When no plugin is registered, events are acknowledged and dropped, and counted in `mini_chat_audit_emit_total{result="dropped"}`. The "no plugin registered" result is not cached: every delivery looks the plugin up again, so a plugin registered later is used, and the warning is logged once per period without a plugin. A found instance id is cached. If the instance resolves in types-registry but its client is not in ClientHub, the delivery returns `Retry` (not acknowledged) and the cached instance id is reset. A `Retry` (this case, a resolution error, or a transient plugin error) is bounded: on the 120th attempt (`AUDIT_MAX_ATTEMPTS`, about an hour with the outbox backoff capped at 30 s) the event is dead-lettered and counted as `result="reject"`, so a misconfigured plugin does not block the partition. See [ADR-0009](./ADR/0009-cpt-cf-mini-chat-adr-data-lifecycle-audit-scope.md).
 
-- **Model policy gateway** (`infra/model_policy`) — Resolves the `mini-chat-model-policy-plugin` instance via types-registry; provides the policy snapshot (model catalog, kill switches) and user limits, and receives usage events from the `UsageEventHandler` outbox handler. The bundled plugin is `static_model_policy`.
+- **Model policy gateway** — Resolves the `mini-chat-model-policy-plugin` instance via types-registry; provides the policy snapshot (model catalog, kill switches) and user limits, and receives usage events from the `UsageEventHandler` outbox handler. The bundled plugin is `static_model_policy`.
 
 - [ ] `p1` - **ID**: `cpt-cf-mini-chat-component-quota-service`
 
@@ -2054,7 +2054,7 @@ Vector-store cleanup does not have an independent persisted state machine in P1.
 
 ### 3.7 Database Schemas & Tables
 
-**Database engines**: PostgreSQL and SQLite. The migrations in `infra/db/migrations` (`m20260302_000001_initial` plus seven incremental migrations) run on both engines: where the dialects differ, a migration ships a PostgreSQL and a SQLite variant; the others, including `m20260927_000006_add_stale_upload_index`, use one statement for both. The schema definitions below use PostgreSQL types (`UUID`, `TIMESTAMPTZ`, `JSONB`, `TEXT`); SQLite uses `TEXT`/`INTEGER`/`BLOB` equivalents. The shared `toolkit_db` outbox tables are created by `toolkit_db::outbox::outbox_migrations()`.
+**Database engines**: PostgreSQL and SQLite. The migrations (`m20260302_000001_initial` plus seven incremental migrations) run on both engines: where the dialects differ, a migration ships a PostgreSQL and a SQLite variant; the others, including `m20260927_000006_add_stale_upload_index`, use one statement for both. The schema definitions below use PostgreSQL types (`UUID`, `TIMESTAMPTZ`, `JSONB`, `TEXT`); SQLite uses `TEXT`/`INTEGER`/`BLOB` equivalents. The shared `toolkit_db` outbox tables are created by `toolkit_db::outbox::outbox_migrations()`.
 
 **Tenant scoping**: every table has a `tenant_id` column and a `#[secure(tenant_col = "tenant_id", ...)]` entity, so every query is tenant-scoped by Secure ORM. Owner scoping (`owner_col = "user_id"`) is declared on `chats`, `message_reactions` and `quota_usage`; child tables of a chat are additionally filtered by a `chat_id` obtained from an owner-scoped chat query (`ensure_owner`).
 
@@ -2509,7 +2509,7 @@ Mini Chat does NOT require the `tenant_closure` local projection table for chat 
 
 The `tenant_closure` projection table exists in the platform authorization model for gears that use hierarchical tenant scoping, but it is unused for Mini Chat content operations.
 
-Schema is defined in the Authorization Design.
+Schema is defined in the [Authorization Design](../../../docs/arch/authorization/DESIGN.md#table-schemas-local-projections).
 
 **P2+ note**: When chat sharing (projects) is introduced, `resource_group_membership` and optionally `resource_group_closure` tables will also be required.
 
@@ -2517,7 +2517,7 @@ Schema is defined in the Authorization Design.
 
 - [ ] `p1` - **ID**: `cpt-cf-mini-chat-design-authz-pep`
 
-Mini Chat acts as a Policy Enforcement Point (PEP) per the platform's PDP/PEP authorization model defined in Authorization Design. The domain service (via PolicyEnforcer) builds evaluation requests, sends them to the AuthZ Resolver (PDP), and compiles returned constraints into `AccessScope` which Secure ORM (`#[derive(Scopable)]`) applies as SQL WHERE clauses.
+Mini Chat acts as a Policy Enforcement Point (PEP) per the platform's PDP/PEP authorization model defined in [Authorization Design](../../../docs/arch/authorization/DESIGN.md). The domain service (via PolicyEnforcer) builds evaluation requests, sends them to the AuthZ Resolver (PDP), and compiles returned constraints into `AccessScope` which Secure ORM (`#[derive(Scopable)]`) applies as SQL WHERE clauses.
 
 Policy (P1): chat content is owner-only. For all content operations, authorization MUST enforce:
 
@@ -2775,7 +2775,7 @@ Same authorization flow as Example 2 (Get Chat), but with `"action": { "name": "
 
 #### Fail-Closed Behavior
 
-Mini Chat follows the platform's fail-closed rules (see Authorization Design - Fail-Closed Rules):
+Mini Chat follows the platform's fail-closed rules (see [Authorization Design - Fail-Closed Rules](../../../docs/arch/authorization/DESIGN.md#fail-closed-rules)):
 
 | Condition | PEP Action |
 |-----------|------------|
@@ -5445,7 +5445,7 @@ Where `in_mult` and `out_mult` are read from the policy snapshot identified by `
 
 **Solution**: use a transactional outbox to guarantee at-least-once event delivery without introducing synchronous billing calls in the hot path.
 
-**Shared outbox implementation**: Mini-Chat uses the shared `toolkit_db::outbox` subsystem implemented in `libs/toolkit-db/src/outbox`. The authoritative integration surface is:
+**Shared outbox implementation**: Mini-Chat uses the shared `toolkit_db::outbox` subsystem. The authoritative integration surface is:
 
 - `Outbox::enqueue(...)` / `Outbox::enqueue_batch(...)` for producers
 - `Outbox::builder(db).queue(name, partitions).leased(handler).lease(LeaseConfig)` for queue registration and worker startup
@@ -6481,7 +6481,7 @@ Not implemented in P1 and recorded in ADRs:
   - `cpt-cf-mini-chat-adr-data-lifecycle-audit-scope` — [ADR-0009](./ADR/0009-cpt-cf-mini-chat-adr-data-lifecycle-audit-scope.md) - P1 scope of data retention, chat deletion and audit content
   - `cpt-cf-mini-chat-adr-runtime-consistency-limitations` — [ADR-0010](./ADR/0010-cpt-cf-mini-chat-adr-runtime-consistency-limitations.md) - Accepted runtime and consistency limitations in P1
 - **Platform dependencies**:
-  - Authorization Design - PDP/PEP model, predicate types, fail-closed rules, constraint compilation
+  - [Authorization Design](../../../docs/arch/authorization/DESIGN.md) - PDP/PEP model, predicate types, fail-closed rules, constraint compilation
 
 ---
 

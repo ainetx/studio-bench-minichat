@@ -47,8 +47,8 @@ Chosen option: "Record the implemented subset and mark the rest Not implemented"
 
 ### Confirmation
 
-* E2E: after `DELETE /chats/{id}`, the chat and its sub-resources return 404 and cleanup outbox rows are written.
-* Unit tests pin the audit fields that are populated.
+* After `DELETE /chats/{id}`, the chat and its sub-resources return 404 and cleanup outbox rows are written.
+* Turn audit events populate identities, model, token usage, latency, tool-call counts and the quota decision.
 
 ## More Information
 

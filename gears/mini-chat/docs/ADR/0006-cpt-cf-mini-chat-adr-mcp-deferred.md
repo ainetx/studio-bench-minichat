@@ -60,7 +60,7 @@ The MCP design text is removed from DESIGN rather than kept elsewhere, since it 
 
 ### Confirmation
 
-* `grep -ri mcp gears/mini-chat/mini-chat/src` finds no MCP implementation; the only matches are test fixtures setting the catalog flag `ModelToolSupport.mcp` (defined in `mini-chat-sdk`).
+* No MCP implementation exists; the model catalog only carries the flag `ModelToolSupport.mcp`.
 * DESIGN §3.3 endpoint table lists no MCP endpoints.
 
 ## More Information
