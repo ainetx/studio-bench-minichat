@@ -40,9 +40,9 @@ Chosen option: "HTTP with SSE passthrough", because OAGW already speaks HTTP, Op
 
 ### Confirmation
 
-* Code review: `llm_provider` sends HTTP requests through the in-process OAGW client (`oagw_sdk::ServiceGatewayClientV1::proxy_request`, resolved from ClientHub) and consumes the SSE response; no gRPC client is used
-* Streaming: deltas reach the client before the provider finishes; the adapters parse provider SSE into the client SSE contract
-* Cancellation through OAGW within 200 ms: `mini_chat_time_to_abort_ms` measures only the Mini Chat side (disconnect observed to provider stream cancelled)
+* Code review: `llm_provider` sends HTTP requests through the in-process OAGW client (`ServiceGatewayClientV1`, `proxy_request`, resolved from ClientHub) and consumes the SSE response; no gRPC client is used
+* E2E: E2E scenario 01-10 (no buffering) checks that deltas reach the client before the provider finishes; provider adapter unit tests cover parsing of provider SSE into the client SSE contract
+* Cancellation through OAGW within 200 ms: no automated test. `mini_chat_time_to_abort_ms` measures only the Mini Chat side (disconnect observed to provider stream cancelled)
 * Ops check (manual): active streams are observable via `mini_chat_active_streams`; FD monitoring is instance-level infrastructure
 * Infrastructure validation (manual): confirm proxy buffering is disabled for SSE passthrough on both OAGW and `api_gateway`
 

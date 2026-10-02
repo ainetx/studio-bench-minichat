@@ -996,7 +996,7 @@ def build_parser():
     p_fuzz_clean = subparsers.add_parser("fuzz-clean", help="Clean fuzzing artifacts")
     p_fuzz_clean.set_defaults(func=cmd_fuzz_clean)
 
-    # docker-pins
+    # cfs-validate
     p_docker_pins = subparsers.add_parser(
         "docker-pins",
         help="Check Dockerfile base images are digest-pinned and match rust-toolchain.toml",

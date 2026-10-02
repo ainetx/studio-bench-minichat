@@ -21,6 +21,7 @@ SCOPE:
 NOT IN THIS DOCUMENT (see other templates):
 ✗ Requirements -> PRD.md
 ✗ Full architecture description -> DESIGN.md
+✗ Implementation details -> features/
 
 RULES:
 - ADRs represent actual decision dilemma and decision state
@@ -76,7 +77,7 @@ Chosen option: "Tenant-owned resource with usage attributed to the requesting se
 ### Confirmation
 
 * Design review (P2+, with group chats): verify shared chat resource model is tenant-owned and uses group membership predicates in PDP constraints.
-* Integration tests (P2+, with group chats): two users in the same group chat; confirm per-request quota usage increments only for the sender. P1 has single-user chats only: a send by user A does not change user B's usage, and another user in the same tenant gets 404 on A's resources.
+* Integration tests (P2+, with group chats): two users in the same group chat; confirm per-request quota usage increments only for the sender. P1 has single-user chats only; E2E scenario 13-10 covers the P1 part: a send by user A does not change user B's usage, and another user in the same tenant gets 404 on A's resources.
 * Audit validation (P2+, with group chats): verify emitted audit events include both `requester_user_id` and tenant billing attribution (`billing_tenant_id = chat.tenant_id`) and that system tasks use `requester_type=system`.
 * Metrics validation (P2+): verify system-attributed usage is observable via a bounded-label metric series (no tenant/user labels).
 

@@ -38,15 +38,19 @@ pattern = ".codex/**/*.md"
 
 [[categories.buckets]]
 id      = "cf-studio"
+pattern = ".cf-studio/**/*.md"
 
 [[categories.buckets]]
 id      = "cf-studio-config"
+pattern = ".cf-studio/config/**/*.md"
 
 [[categories.buckets]]
 id      = "cf-studio-core"
+pattern = ".cf-studio/.core/**/*.md"
 
 [[categories.buckets]]
 id      = "cf-studio-gen"
+pattern = ".cf-studio/.gen/**/*.md"
 
 [[categories.buckets]]
 id      = "windsurf"
@@ -134,7 +138,7 @@ pattern = "gears/*/**/*.md"
 id = "claude"
 label = "Claude view"
 default_depth = 5
-start_paths = [".claude/**/*.md"]
+start_paths = ["CLAUDE.md", ".claude/**/*.md"]
 
 [[views]]
 id = "codex"
@@ -158,7 +162,7 @@ start_paths = [".cursor/**/*.md"]
 id = "copilot"
 label = "Copilot view"
 default_depth = 5
-start_paths = [".github/instructions/**/*.instructions.md", ".github/prompts/**/*.md", ".github/agents/**/*.md"]
+start_paths = [".github/copilot-instructions.md", ".github/instructions/**/*.instructions.md", ".github/prompts/**/*.md", ".github/agents/**/*.md"]
 
 [[views]]
 id = "antigravity"
