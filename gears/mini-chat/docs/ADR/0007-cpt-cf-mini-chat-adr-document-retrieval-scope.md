@@ -9,7 +9,7 @@ date: 2026-09-26
 
 ## Context and Problem Statement
 
-PRD §5.2 and DESIGN specify several document-related capabilities. Some were implemented differently and some were not implemented. This ADR records the P1 state so the documents and the code agree.
+PRD §5.2 and DESIGN specify several document-related capabilities. Some were implemented differently and some were not implemented. This ADR records the P1 state so the documents, the running system and the E2E suite agree.
 
 ## Decision Drivers
 
@@ -44,8 +44,8 @@ Chosen option: "Record the implemented behaviour and mark the gaps".
 
 ### Confirmation
 
-* A document upload reaches `ready`, and `doc_summary` is null/absent for every upload.
-* Deleting a referenced attachment gives 409 `attachment_locked`.
+* E2E: a document upload reaches `ready`. `doc_summary` is asserted null/absent only for an XLSX (code interpreter) upload that reaches `ready`; no test asserts it for a `file_search` document.
+* E2E scenario 10-04: deleting a referenced attachment gives 409 `attachment_locked`.
 
 ## More Information
 
