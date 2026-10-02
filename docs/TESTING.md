@@ -44,6 +44,7 @@ make e2e-docker            # E2E — Docker environment
 make e2e-docker-smoke      # E2E — Docker environment (smoke subset only)
 make e2e-local             # E2E — local: run every shared-server suite against one shared server
 make e2e-local-smoke       # E2E — smoke subset only
+make e2e-mini-chat         # E2E — mini-chat lane (dedicated binary, offline mode)
 make e2e-tr-authz          # E2E — AuthZ -> TR -> RG chain (resource_group/e2e.yaml, profile: tr-authz)
 make e2e-usage-collector   # E2E — usage-collector lane (dedicated binary; needs Docker)
 make fuzz                  # fuzz — 30 s smoke per target
@@ -264,19 +265,19 @@ The `e2e.yml` workflow runs:
 - **On PRs to `main`**: full E2E suite (local mode).
 - **Nightly**: full E2E suite. Failures auto-create a GitHub issue assigned to the last commit author.
 - **Manual dispatch**: smoke or full, selectable.
-- **Specialized lanes**: the same workflow also runs the
+- **Specialized lanes**: the same workflow also runs the mini-chat E2E suite, the
   RG + AuthZ end-to-end chain tests, and the usage-collector suite.
 
 The `tr-authz` lane is ordinary local mode with a full-config profile
 (`testing/e2e/suites/resource_group/e2e.yaml`, profile `tr-authz`, applied over
-`config/e2e-local.yaml`) and a `-k resource_group` selection. The
-`usage-collector` lane builds its own `cf-gears-example-server` with a feature
-set the default local-mode binary does not carry, so it cannot share the common
-server: it is a `launcher: pytest` suite that owns its server (and, for
-usage-collector, a TimescaleDB container) in its own `conftest.py`. A plain
+`config/e2e-local.yaml`) and a `-k resource_group` selection. The `mini-chat` and
+`usage-collector` lanes each build their own `cf-gears-example-server` with a feature
+set the default local-mode binary does not carry, so they cannot share the common
+server: they are `launcher: pytest` suites that own their server (and, for
+usage-collector, a TimescaleDB container) in their own `conftest.py`. A plain
 `make e2e-local` (no `SUITE`) runs **only** the shared-server suites (`launcher:
-e2e-launcher`) and therefore **skips it** — run it via its dedicated
-`make e2e-usage-collector` target (or `make e2e-local
+e2e-launcher`) and therefore **skips these** — run them via their dedicated
+`make e2e-mini-chat` / `make e2e-usage-collector` targets (or `make e2e-local
 SUITE=<suite>`), which CI invokes as separate steps.
 
 The usage-collector lane additionally needs a reachable Docker daemon — its storage
@@ -438,7 +439,7 @@ PR opened / updated
   ├── docs.yml            — Markdown link checking for docs changes
   ├── gts-validation.yml  — GTS identifier validation for docs / schema changes
   └── e2e.yml (PRs to main only)
-        └── e2e           — full E2E suite (local mode), plus TR/AuthZ
+        └── e2e           — full E2E suite (local mode), plus mini-chat, TR/AuthZ
                             and usage-collector E2E lanes
 
 Additional quality workflows

@@ -38,7 +38,7 @@ gears/system/resource-group/
     tenant_scoping_test.rs                 ← AccessScope scoping: 10 tests
 ```
 
-Follows existing project conventions: `testing/e2e/suites/{gear}/` for HTTP-level tests (see `oagw/`, `types_registry/`), `gears/.../tests/` for Rust in-process tests.
+Follows existing project conventions: `testing/e2e/suites/{gear}/` for HTTP-level tests (see `oagw/`, `mini_chat/`, `types_registry/`), `gears/.../tests/` for Rust in-process tests.
 
 ---
 

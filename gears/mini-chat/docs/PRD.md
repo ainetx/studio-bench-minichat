@@ -1041,7 +1041,7 @@ Turns stuck in `running` state beyond a configurable timeout (e.g. pod crash wit
 **Type**: REST API
 **Stability**: stable
 **Description**: Public HTTP API for chat management, message listing with cursor pagination, message streaming, file upload, attachment status, message reactions, turn status and mutations, the model catalog and quota status. All endpoints require authentication and tenant license verification (P1: base license feature, see `cpt-cf-mini-chat-fr-license-gate`).
-**Breaking Change Policy**: Versioned via URL prefix (`/v1/`). Breaking changes require new version. The generated OpenAPI document is the reference for request and response schemas.
+**Breaking Change Policy**: Versioned via URL prefix (`/v1/`). Breaking changes require new version. The generated OpenAPI document (`docs/api/api.json` at the repository root) is the reference for request and response schemas.
 
 **Endpoints (P1)**:
 
@@ -1780,4 +1780,4 @@ MCP defaults below are Future ([ADR-0006](./ADR/0006-cpt-cf-mini-chat-adr-mcp-de
   - [ADR-0008](./ADR/0008-cpt-cf-mini-chat-adr-quota-policy-scope.md) — P1 scope of quota, policy and licensing controls (§5.2, §5.4, §5.6, §9)
   - [ADR-0009](./ADR/0009-cpt-cf-mini-chat-adr-data-lifecycle-audit-scope.md) — P1 scope of data retention, chat deletion and audit content (§5.4, §5.5, §6.1)
   - [ADR-0010](./ADR/0010-cpt-cf-mini-chat-adr-runtime-consistency-limitations.md) — accepted runtime and consistency limitations (replay, SSE ping, watchdog)
-- **API reference**: generated OpenAPI document
+- **API reference**: generated OpenAPI `docs/api/api.json` at the repository root

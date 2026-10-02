@@ -97,7 +97,7 @@ Chosen option: "Adopt the canonical `Problem` for REST, and keep `{code, message
 
 * Each condition in the table maps to the category, HTTP status and reason that the table lists.
 * REST errors carry `Problem.type` and the reason fields.
-* The generated OpenAPI document is the reference for the response schemas.
+* The generated OpenAPI (`docs/api/api.json`) is the reference for the response schemas.
 
 ## Pros and Cons of the Options
 
@@ -114,7 +114,7 @@ Chosen option: "Adopt the canonical `Problem` for REST, and keep `{code, message
 ## More Information
 
 * Supersedes the "Error Codes" table in DESIGN §3.3 and PRD §7.2 as they were before 2026-09.
-* The old hand-written OpenAPI document described the superseded contract and was removed. The generated OpenAPI document is the source of truth.
+* The old `docs/openapi.json` was hand-written, described the superseded contract and was removed. The generated `docs/api/api.json` at the repository root is the source of truth.
 
 ## Traceability
 
