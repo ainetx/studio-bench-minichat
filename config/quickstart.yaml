@@ -104,59 +104,6 @@ gears:
       # Set to false to enable bearer-token auth via authn-resolver pipeline below.
       auth_disabled: true
 
-      # ----------------------------------------------------------------------
-      # Zone-based throttling for the mini-chat "create chat" endpoint
-      #   POST /mini-chat/v1/chats  (operation_id: mini_chat.create_chat)
-      #   - rate limit:     10 requests/second (per client IP)
-      #   - in-flight limit: 100 concurrent requests (per client IP)
-      #
-      # NOTE on paths: the mini-chat gear mounts its routes under url_prefix
-      # "/mini-chat" (gear default). The gateway also strips its own `prefix_path`
-      # (/cf) before matching, so the runtime path is "/mini-chat/v1/chats"
-      # (the public URL is "/cf/mini-chat/v1/chats").
-      #
-      # NOTE on enforcement (see middleware/throttling.rs): enforcement is driven
-      # by the `ThrottlingSpec` attached to the operation IN CODE, which references
-      # these zone names. That binding is already wired in the mini-chat gear at
-      # gears/mini-chat/.../api/rest/routes/chats.rs (create_chat):
-      #   ThrottlingSpec {
-      #     rate_limit_zone:          "rl_mini_chat_chat",
-      #     in_flight_limit_zone:     "ifl_mini_chat_chat",
-      #     require_security_context: false,   // IP-keyed => enforced before auth
-      #     dry_run:                  true,    // observe-only: logs would-be
-      #   }                                    // rejections, never returns 429
-      #
-      # NOTE: because the binding sets `dry_run: true`, these zones only observe
-      # and log — nothing is actually rejected until the gear flips it to false.
-      #
-      # The key strategy (`ip` vs `identity`) lives in the zone `key:` block
-      # below; `ip` is used so it works with auth_disabled (no identity available
-      # pre-auth). To throttle per authenticated subject, switch both zones to
-      # `key: { type: identity }`, set the spec to `require_security_context: true`
-      # on an authenticated operation, and set `auth_disabled: false`; the router
-      # build rejects an identity zone on an anonymous operation or with
-      # `auth_disabled: true`, because every client would share one key.
-      # ----------------------------------------------------------------------
-      rate_limit_zones:
-        rl_mini_chat_chat:
-          rate_limit: 10/s          # steady-state: 10 requests per second
-          burst_limit: 10           # token-bucket capacity (max burst)
-          response_status_code: 429 # Too Many Requests
-          response_retry_after: auto # compute Retry-After from the token bucket
-          key:
-            type: ip                # one bucket per client IP
-          max_keys: 10000           # max distinct IPs tracked
-
-      in_flight_limit_zones:
-        ifl_mini_chat_chat:
-          in_flight_limit: 100      # max concurrent in-flight requests per IP
-          backlog_limit: 0          # no queue: reject immediately once full
-          backlog_timeout: 0s       # (unused when backlog_limit = 0)
-          response_status_code: 429
-          key:
-            type: ip
-          max_keys: 10000
-
   gear-orchestrator:
     config: {}
     # No configuration needed for the gear orchestrator
@@ -182,9 +129,6 @@ gears:
       vendor: "constructorfabric"
       priority: 100
       mode: accept_all
-      s2s_credentials:
-        - client_id: "mini-chat"
-          client_secret: "mini-chat-dev-secret"
 
   static-authz-plugin:
     config:
@@ -244,68 +188,6 @@ gears:
       server: "sqlite_users"
       file: "chat_engine.db"
     config: {}
-
-  mini-chat:
-    # Gear-specific database configuration
-    database:
-      server: "sqlite_users"
-      file: "mini_chat.db"
-    config:
-      # S2S credentials for obtaining SecurityContext
-      # that will be used for communication with other gears.
-      client_credentials:
-        client_id: "mini-chat"
-        client_secret: "mini-chat-dev-secret"
-      # Provider registry. Key = provider_id (matches ModelCatalogEntry.provider_id).
-      # `upstream_alias` is optional — defaults to `host` when omitted.
-      providers:
-        openai:
-          kind: openai_responses
-          storage_kind: openai
-          host: "api.openai.com"
-          auth_plugin_type: "gts.cf.core.oagw.auth_plugin.v1~cf.core.oagw.apikey.v1"
-          auth_config:
-            header: "Authorization"
-            prefix: "Bearer "
-            secret_ref: "openai-key"
-
-      # ── Azure OpenAI example (uncomment and set your endpoint) ──────────
-      #   azure_openai:
-      #     kind: openai_responses
-      #     storage_kind: azure                             # required; azure needs api_version
-      #     host: "<your-resource>.openai.azure.com"       # Azure endpoint
-      #     # upstream_alias: "custom-alias"               # optional, defaults to host
-      #     api_path: "/openai/v1/responses"
-      #     api_version: "2025-03-01-preview"             # required for storage_kind: azure
-      #     auth_plugin_type: "gts.cf.core.oagw.auth_plugin.v1~cf.core.oagw.apikey.v1"
-      #     auth_config:
-      #       header: "api-key"
-      #       prefix: ""
-      #       secret_ref: "azure-openai-key"
-      #
-      # ── Per-tenant Azure example (each tenant has its own endpoint) ─────
-      #   azure_openai_tenant_a:
-      #     kind: openai_responses
-      #     storage_kind: azure                             # required; azure needs api_version
-      #     host: "tenant-a.openai.azure.com"
-      #     api_path: "/openai/v1/responses"
-      #     api_version: "2025-03-01-preview"             # required for storage_kind: azure
-      #     auth_plugin_type: "gts.cf.core.oagw.auth_plugin.v1~cf.core.oagw.apikey.v1"
-      #     auth_config:
-      #       header: "api-key"
-      #       prefix: ""
-      #       secret_ref: "azure-openai-key-tenant-a"
-      #   azure_openai_tenant_b:
-      #     kind: openai_responses
-      #     storage_kind: azure                             # required; azure needs api_version
-      #     host: "tenant-b.openai.azure.com"
-      #     api_path: "/openai/v1/responses"
-      #     api_version: "2025-03-01-preview"             # required for storage_kind: azure
-      #     auth_plugin_type: "gts.cf.core.oagw.auth_plugin.v1~cf.core.oagw.apikey.v1"
-      #     auth_config:
-      #       header: "api-key"
-      #       prefix: ""
-      #       secret_ref: "azure-openai-key-tenant-b"
 
   resource-group:
     database:
@@ -446,7 +328,7 @@ gears:
   # The credstore gateway reads a secret's metadata from its own DB, so the
   # values below are not readable on their own (issue #5094). Until that is
   # fixed, set each secret through the API after every start (the first run
-  # needs POST instead of PUT); mini-chat retries the deferred provider.
+  # needs POST instead of PUT).
   # Read the key with -s so it never lands in shell history or `ps`, and
   # pipe the body through -d @- so it never appears as a curl argument:
   #   read -s -p 'openai key: ' KEY && printf '{"value":"%s","sharing":"tenant"}' "$KEY" \

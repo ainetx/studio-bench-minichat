@@ -136,10 +136,10 @@
 //! same validated prefix:
 //!
 //! ```ignore
-//! run_migrations_for_testing(&db, outbox_migrations_with_prefix("mini_chat_outbox")?).await?;
+//! run_migrations_for_testing(&db, outbox_migrations_with_prefix("orders_db_outbox")?).await?;
 //!
 //! let handle = Outbox::builder(db)
-//!     .table_prefix("mini_chat_outbox")?
+//!     .table_prefix("orders_db_outbox")?
 //!     .queue("orders", Partitions::of(4))
 //!         .leased(my_handler)
 //!     .start().await?;

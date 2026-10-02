@@ -51,7 +51,6 @@ excluded_paths = [
     "gears/approval-service",
     "gears/file-parser",
     "gears/llm-gateway",
-    "gears/mini-chat",
     "gears/model-registry",
     "gears/serverless-runtime",
     "gears/simple-resource-registry",

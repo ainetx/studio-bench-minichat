@@ -10,7 +10,7 @@
 //!
 //! The `resource_type` field accepts a GTS expression:
 //!
-//! - **Concrete GTS Type Identifier** — `gts.cf.core.ai_chat.chat.v1~cf.core.mini_chat.chat.v1~`
+//! - **Concrete GTS Type Identifier** — `gts.cf.core.ai_chat.chat.v1~cf.core.example_chat.chat.v1~`
 //! - **Wildcard pattern** (GTS §3.5) — `gts.cf.core.am.tenant.*`
 //! - **Query Language predicates** (GTS §3.3) — `gts.cf.core.ai_chat.chat.v1~[category='support']`
 //!
@@ -28,7 +28,7 @@
 //! has no meaningful value — and an internal handle for the permission
 //! (`<permission_name>`). Examples:
 //!
-//! - `gts.cf.toolkit.authz.permission.v1~cf.mini_chat._.chat_create.v1`
+//! - `gts.cf.toolkit.authz.permission.v1~cf.example_chat._.chat_create.v1`
 //! - `gts.cf.toolkit.authz.permission.v1~cf.am._.tenant_create.v1`
 //!
 //! ## Extending with per-permission metadata
@@ -60,7 +60,7 @@ use gts::GtsInstanceId;
 )]
 pub struct AuthzPermissionV1 {
     /// Full GTS Instance Identifier of this permission (e.g.
-    /// `gts.cf.toolkit.authz.permission.v1~cf.mini_chat._.chat_read.v1`).
+    /// `gts.cf.toolkit.authz.permission.v1~cf.example_chat._.chat_read.v1`).
     pub id: GtsInstanceId,
     /// GTS expression identifying the set of resources this permission
     /// applies to. Accepts concrete IDs, wildcard patterns (GTS §3.5), or

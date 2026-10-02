@@ -623,7 +623,7 @@ async fn migrations_create_default_table_family() {
 
 #[tokio::test]
 async fn migrations_create_custom_table_family() {
-    let tables = OutboxTables::new("mini_chat_outbox").unwrap();
+    let tables = OutboxTables::new("orders_db_outbox").unwrap();
     let db = setup_db_with_migrations(
         "ch0_custom_tables",
         super::outbox_migrations_with_prefix(tables.prefix()).unwrap(),
@@ -635,7 +635,7 @@ async fn migrations_create_custom_table_family() {
 
 #[tokio::test]
 async fn migrations_create_default_and_custom_table_families_together() {
-    let custom_tables = OutboxTables::new("mini_chat_outbox").unwrap();
+    let custom_tables = OutboxTables::new("orders_db_outbox").unwrap();
     let mut migrations = super::outbox_migrations();
     migrations.extend(super::outbox_migrations_with_prefix(custom_tables.prefix()).unwrap());
     let db = setup_db_with_migrations("ch0_default_and_custom_tables", migrations).await;
@@ -4659,7 +4659,7 @@ async fn default_prefix_builder_enqueue_uses_default_tables() {
 
 #[tokio::test]
 async fn custom_prefix_builder_registers_queue() {
-    let tables = OutboxTables::new("mini_chat_outbox").unwrap();
+    let tables = OutboxTables::new("orders_db_outbox").unwrap();
     let db = setup_db_with_migrations(
         "ch10_custom_prefix_register",
         super::outbox_migrations_with_prefix(tables.prefix()).unwrap(),
@@ -4727,7 +4727,7 @@ async fn custom_prefix_containing_default_body_token_registers_and_enqueues() {
 
 #[tokio::test]
 async fn custom_prefix_processes_message_without_default_tables() {
-    let tables = OutboxTables::new("mini_chat_outbox").unwrap();
+    let tables = OutboxTables::new("orders_db_outbox").unwrap();
     let db = setup_db_with_migrations(
         "ch10_custom_prefix_process",
         super::outbox_migrations_with_prefix(tables.prefix()).unwrap(),
@@ -4783,7 +4783,7 @@ async fn custom_prefix_processes_message_without_default_tables() {
 
 #[tokio::test]
 async fn custom_prefix_dead_letter_uses_custom_table() {
-    let tables = OutboxTables::new("mini_chat_outbox").unwrap();
+    let tables = OutboxTables::new("orders_db_outbox").unwrap();
     let db = setup_db_with_migrations(
         "ch10_custom_prefix_dead_letter",
         super::outbox_migrations_with_prefix(tables.prefix()).unwrap(),
@@ -4838,7 +4838,7 @@ async fn custom_prefix_dead_letter_uses_custom_table() {
 async fn custom_prefix_vacuum_cleans_custom_tables() {
     use super::workers::vacuum::VacuumTask;
 
-    let tables = OutboxTables::new("mini_chat_outbox").unwrap();
+    let tables = OutboxTables::new("orders_db_outbox").unwrap();
     let db = setup_db_with_migrations(
         "ch10_custom_prefix_vacuum",
         super::outbox_migrations_with_prefix(tables.prefix()).unwrap(),
@@ -4916,7 +4916,7 @@ async fn custom_prefix_vacuum_cleans_custom_tables() {
 
 #[tokio::test]
 async fn default_and_custom_prefix_instances_coexist() {
-    let custom_tables = OutboxTables::new("mini_chat_outbox").unwrap();
+    let custom_tables = OutboxTables::new("orders_db_outbox").unwrap();
     let mut migrations = super::outbox_migrations();
     migrations.extend(super::outbox_migrations_with_prefix(custom_tables.prefix()).unwrap());
     let db = setup_db_with_migrations("ch10_prefix_instances_coexist", migrations).await;
@@ -5002,7 +5002,7 @@ async fn default_and_custom_prefix_instances_coexist() {
 async fn custom_prefix_without_matching_migration_fails_startup() {
     let db = setup_empty_db("ch10_custom_prefix_missing_migration").await;
     let result = Outbox::builder(db)
-        .table_prefix("mini_chat_outbox")
+        .table_prefix("orders_db_outbox")
         .unwrap()
         .queue("q", Partitions::of(1))
         .leased(CountingMessageHandler {

@@ -64,7 +64,7 @@ The struct literal must contain exactly one of `id` / `gts_id` / `gtsId` as a st
 gts_instance! {
     #[gts_static(CHAT_READ_PERM)]
     AuthzPermissionV1 {
-        id: "gts.cf.toolkit.authz.permission.v1~cf.mini_chat._.chat_read.v1",
+        id: "gts.cf.toolkit.authz.permission.v1~cf.example_chat._.chat_read.v1",
         resource_type: /* ... */,
         action: /* ... */,
         display_name: /* ... */,

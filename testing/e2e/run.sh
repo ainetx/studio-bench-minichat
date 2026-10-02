@@ -3,9 +3,7 @@
 # run.sh — Run E2E tests with auto-managed Python venv.
 #
 # Usage:
-#   ./testing/e2e/run.sh gears/mini_chat/ -v        # offline (default)
-#   ./testing/e2e/run.sh gears/mini_chat/ --mode online -v
-#   ./testing/e2e/run.sh gears/mini_chat/ -m openai -v
+#   ./testing/e2e/run.sh suites/<suite>/ -v
 
 set -euo pipefail
 

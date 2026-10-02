@@ -190,7 +190,7 @@ help: py-env
 
 # -------- Set up --------
 
-.PHONY: setup install-tools check-prereq-local cfs-ensure cfs-validate cfs-repair cfs-validate-kit-local py-env
+.PHONY: setup install-tools check-prereq-local py-env
 
 py-env: $(PY_ENV_STAMP)
 	$(call print_target_banner)
@@ -274,7 +274,7 @@ setup: .setup-stamp py-env
 # |             | - Ensures clean compilation across all targets and features          |
 # +-------------+----------------------------------------------------------------------+
 
-.PHONY: fmt clippy clippy-deep lychee docs-preview kani geiger safety lint dylint dylint-list dylint-test shear gts-docs docker-pins cfs-ensure cfs-repair cfs-validate cfs-validate-kits cfs-validate-kit-local cfs-spec-coverage ensure-submodules
+.PHONY: fmt clippy clippy-deep lychee docs-preview kani geiger safety lint dylint dylint-list dylint-test shear gts-docs docker-pins ensure-submodules
 
 ## Verify git submodules (e.g. guidelines/DNA) are initialized; fails otherwise.
 ensure-submodules:
@@ -289,8 +289,6 @@ fmt:
 	$(call check_rustup_component,rustfmt)
 	$(if $(GEAR),cargo fmt $(GEAR_PKGS) --check,cargo fmt --all --check)
 
-CFS ?= cfs
-CFS_PIPX_SPEC ?= git+https://github.com/constructorfabric/studio.git
 export PATH := $(HOME)/.local/bin:$(PATH)
 
 # Fast two-pass clippy used in PR CI (target: <5 min with sccache).
@@ -476,51 +474,6 @@ fips-policy:
 security: deny fips-policy
 	$(call print_target_banner)
 
-# -------- Studio --------
-
-# Validate Constructor Studio artifacts (specs, code, templates).
-cfs-validate: cfs-repair
-	$(call print_target_banner)
-	$(CFS) validate && echo "OK. Constructor Studio validation PASSED" || (echo "ERROR: Constructor Studio validation FAILED"; exit 1)
-
-# Ensure the Constructor Studio CLI is available even when generated runtime
-# files are ignored locally or absent in a clean checkout.
-cfs-ensure:
-	$(call print_target_banner)
-	@if ! command -v $(CFS) >/dev/null 2>&1; then \
-		echo "cfs not found; installing $(CFS_PIPX_SPEC) via pipx"; \
-		if ! command -v pipx >/dev/null 2>&1; then \
-			echo "ERROR: pipx is required before running this target"; \
-			exit 1; \
-		else \
-			pipx install $(CFS_PIPX_SPEC); \
-		fi; \
-	fi
-	@if ! command -v $(CFS) >/dev/null 2>&1; then \
-		echo "ERROR: cfs was installed but is not on PATH"; \
-		exit 1; \
-	fi
-
-## Repair ignored/generated Constructor Studio runtime files before validation.
-cfs-repair: cfs-ensure
-	$(call print_target_banner)
-	$(CFS) init --yes
-
-## Check Constructor Studio spec-to-code traceability coverage.
-cfs-spec-coverage: cfs-repair
-	$(call print_target_banner)
-	$(CFS) spec-coverage --min-coverage 80
-
-## Validate registered Constructor Studio kits.
-cfs-validate-kits: cfs-repair
-	$(call print_target_banner)
-	$(CFS) validate-kits
-
-## Validate the local studio-kit-gears checkout as a kit directory.
-cfs-validate-kit-local: cfs-repair
-	$(call print_target_banner)
-	cd studio-kit-gears && $(CFS) validate-kits .
-
 # -------- API and docs --------
 
 .PHONY: openapi md-fabric slides web-docs-preview .example-server-build arch_status_svg_update
@@ -674,8 +627,6 @@ GEAR_HAS_SERVER_FEATURE := $(or $(filter $(GEAR),$(GEAR_SERVER_ALWAYS_LINKED)),$
 # The gear itself as an optional feature (empty if it's an always-linked gear).
 GEAR_SERVER_OPTIONAL_FEATURES := $(if $(GEAR_HAS_SERVER_FEATURE),$(filter-out $(GEAR_SERVER_ALWAYS_LINKED),$(GEAR)),)
 # Extra local-dev plugins a gear needs to start (GEAR_SERVER_EXTRA_FEATURES_<gear>).
-# mini-chat registers OAGW upstreams whose secret_ref OAGW checks in credstore.
-GEAR_SERVER_EXTRA_FEATURES_mini-chat ?= static-credstore
 GEAR_SERVER_EXTRA_FEATURES := $(GEAR_SERVER_EXTRA_FEATURES_$(GEAR))
 GEAR_SERVER_FEATURES ?= $(GEAR_SERVER_OPTIONAL_FEATURES)$(if $(GEAR_SERVER_OPTIONAL_FEATURES),$(COMMA),)$(GEAR_SERVER_BASE_FEATURES)$(if $(GEAR_SERVER_EXTRA_FEATURES),$(COMMA)$(GEAR_SERVER_EXTRA_FEATURES),)
 GEAR_SERVER_FEATURE_ARGS := $(if $(GEAR),$(if $(GEAR_HAS_SERVER_FEATURE),--no-default-features --features $(GEAR_SERVER_FEATURES),),$(EXAMPLE_SERVER_FEATURE_ARGS))
@@ -1030,7 +981,7 @@ bench-db-longhaul: bench-pg-longhaul bench-mysql-longhaul bench-mariadb-longhaul
 
 # -------- E2E tests --------
 
-.PHONY: e2e e2e-local e2e-local-smoke e2e-mini-chat e2e-docker e2e-docker-smoke e2e-tr-authz e2e-usage-collector e2e-event-broker
+.PHONY: e2e e2e-local e2e-local-smoke e2e-docker e2e-docker-smoke e2e-tr-authz e2e-usage-collector e2e-event-broker
 
 E2E_TARGET ?=
 # E2E selectors for `make e2e-local`:
@@ -1073,10 +1024,10 @@ e2e-docker-smoke: py-env
 #                                  every shared-server suite against it. A
 #                                  "shared-server suite" is one whose e2e.yaml
 #                                  has `launcher: e2e-launcher`.
-# Self-managed suites (`launcher: pytest` — mini-chat, usage-collector) and the
+# Self-managed suites (`launcher: pytest` — e.g. usage-collector) and the
 # tr-authz profile lane start their own server, so plain `make e2e-local` and
-# GEAR= runs skip them; run them via their own targets (e2e-mini-chat,
-# e2e-usage-collector, e2e-tr-authz). All feature/config/sidecar/gear knowledge
+# GEAR= runs skip them; run them via their own targets (e2e-usage-collector,
+# e2e-tr-authz). All feature/config/sidecar/gear knowledge
 # lives in config/e2e-launcher.yaml and testing/e2e/suites/<suite>/e2e.yaml, so
 # this recipe stays suite-agnostic.
 e2e-local: py-env
@@ -1092,17 +1043,6 @@ e2e-tr-authz: py-env
 e2e-local-smoke: py-env
 	$(call print_target_banner)
 	$(PYTHON) tools/scripts/run_e2e.py --suite "$(SUITE)" --gear "$(GEAR)" --smoke -- $(E2E_TARGET)
-
-MINI_CHAT_FEATURES = mini-chat,static-authn,static-authz,single-tenant,static-credstore
-MINI_CHAT_K8S_FEATURES = $(MINI_CHAT_FEATURES),k8s
-
-MINI_CHAT_IMAGE ?= cf-gears-mini-chat
-MINI_CHAT_TAG   ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo latest)
-
-## Run mini-chat E2E tests (alias for focused local E2E)
-e2e-mini-chat:
-	$(call print_target_banner)
-	$(MAKE) e2e-local SUITE=mini-chat
 
 ## Run usage-collector E2E tests (alias for focused local E2E; Docker required)
 e2e-usage-collector:
@@ -1203,138 +1143,9 @@ fuzz-corpus: fuzz-install
 	fi
 	cargo +nightly fuzz cmin --fuzz-dir tools/fuzz $(FUZZ_TARGET)
 
-# -------- Mini chat --------
-
-# mini-chat targets are for running the mini-chat gear locally and in Kubernetes, with options for building Docker images and deploying with Helm.
-
-.PHONY: mini-chat mini-chat-docker mini-chat-helm mini-chat-helm-template mini-chat-up mini-chat-down mini-chat-port-forward
-
-# Run server with mini-chat gear
-mini-chat:
-	$(call print_target_banner)
-	cargo run --bin $(EXAMPLE_SERVER_BIN) --features mini-chat,static-authn,static-authz,single-tenant,static-credstore,otel -- --config config/mini-chat.yaml run
-
-## Build mini-chat Docker image for K8s (dev build by default, RELEASE=1 for optimized)
-## On linux: builds on host (reuses local target/), then packages the binary.
-## On other OS: full multi-stage Docker build with BuildKit caching.
-MINI_CHAT_PROFILE = $(if $(RELEASE),release,dev)
-MINI_CHAT_CARGO_RELEASE_FLAG = $(if $(RELEASE),--release,)
-MINI_CHAT_TARGET_DIR = $(or $(CARGO_TARGET_DIR),target)/$(if $(RELEASE),release,debug)
-
-mini-chat-docker:
-	$(call print_target_banner)
-ifeq ($(shell uname -s),Linux)
-	@echo "==> Linux host: building on host, packaging into image"
-	cargo build $(MINI_CHAT_CARGO_RELEASE_FLAG) --bin cf-gears-example-server --package=cf-gears-example-server \
-		--features "$(MINI_CHAT_K8S_FEATURES)"
-	@mkdir -p .docker-stage
-	@cp $(MINI_CHAT_TARGET_DIR)/cf-gears-example-server .docker-stage/cf-gears-example-server
-	DOCKER_BUILDKIT=1 docker build \
-		-f gears/mini-chat/deploy/docker/mini-chat-prebuilt.Dockerfile \
-		--build-arg BINARY_PATH=".docker-stage/cf-gears-example-server" \
-		-t $(MINI_CHAT_IMAGE):$(MINI_CHAT_TAG) .
-	@rm -rf .docker-stage
-else
-	@echo "==> Non-linux host: full Docker build"
-	DOCKER_BUILDKIT=1 docker build \
-		-f gears/mini-chat/deploy/docker/mini-chat.Dockerfile \
-		--build-arg CARGO_FEATURES="$(MINI_CHAT_K8S_FEATURES)" \
-		--build-arg BUILD_PROFILE="$(MINI_CHAT_PROFILE)" \
-		-t $(MINI_CHAT_IMAGE):$(MINI_CHAT_TAG) .
-endif
-
-## Deploy mini-chat Helm chart to local K8s cluster (build + load + install)
-mini-chat-helm: mini-chat-docker
-	$(call print_target_banner)
-	@if command -v k3s >/dev/null 2>&1; then \
-		docker save $(MINI_CHAT_IMAGE):$(MINI_CHAT_TAG) | sudo k3s ctr images import -; \
-	elif command -v minikube >/dev/null 2>&1; then \
-		minikube ssh "docker rmi -f $(MINI_CHAT_IMAGE):$(MINI_CHAT_TAG) 2>/dev/null" || true; \
-		minikube image load $(MINI_CHAT_IMAGE):$(MINI_CHAT_TAG); \
-	else \
-		echo "ERROR: k3s or minikube required"; exit 1; \
-	fi
-	helm upgrade --install mini-chat gears/mini-chat/deploy/helm/mini-chat/ \
-		--set image.tag="$(MINI_CHAT_TAG)" \
-		--set secrets.azureOpenaiApiKey="$${AZURE_OPENAI_API_KEY}" \
-		--set secrets.azureOpenaiApiHost="$${AZURE_OPENAI_API_HOST}" \
-		--set postgres.host="$${PG_HOST:-postgres.default.svc.cluster.local}" \
-		--set postgres.password="$${PG_PASSWORD}"
-	kubectl rollout restart deployment/mini-chat
-	kubectl rollout status deployment/mini-chat --timeout=120s
-
-## Render mini-chat Helm templates (dry-run)
-mini-chat-helm-template:
-	$(call print_target_banner)
-	helm template mini-chat gears/mini-chat/deploy/helm/mini-chat/
-
-## One-command: ensure minikube is up, deploy latest chart, port-forward
-## Usage: make mini-chat-up
-## If image was rebuilt (make mini-chat-docker), re-run this to pick it up.
-mini-chat-up:
-	$(call print_target_banner)
-	@# --- 1. Ensure cluster is running ---
-	@if command -v minikube >/dev/null 2>&1; then \
-		STATUS=$$(minikube status -f '{{.Host}}' 2>/dev/null || true); \
-		if [ "$$STATUS" != "Running" ]; then \
-			echo "Starting minikube..."; \
-			minikube start; \
-		fi; \
-	elif command -v k3s >/dev/null 2>&1; then \
-		: ; \
-	else \
-		echo "ERROR: minikube or k3s required"; exit 1; \
-	fi
-	@# --- 2. Load latest image if it exists locally ---
-	@if docker image inspect $(MINI_CHAT_IMAGE):$(MINI_CHAT_TAG) >/dev/null 2>&1; then \
-		echo "Loading image $(MINI_CHAT_IMAGE):$(MINI_CHAT_TAG) into cluster..."; \
-		if command -v minikube >/dev/null 2>&1; then \
-			minikube ssh "docker rmi -f $(MINI_CHAT_IMAGE):$(MINI_CHAT_TAG) 2>/dev/null" || true; \
-			minikube image load $(MINI_CHAT_IMAGE):$(MINI_CHAT_TAG); \
-		else \
-			docker save $(MINI_CHAT_IMAGE):$(MINI_CHAT_TAG) | sudo k3s ctr images import -; \
-		fi; \
-	else \
-		echo "No local image found. Run 'make mini-chat-docker' first to build."; \
-		exit 1; \
-	fi
-	@# --- 3. Helm install/upgrade ---
-	@if [ -z "$${AZURE_OPENAI_API_KEY}" ] || [ -z "$${AZURE_OPENAI_API_HOST}" ]; then \
-		echo "WARNING: AZURE_OPENAI_API_KEY or AZURE_OPENAI_API_HOST not set."; \
-		echo "  export AZURE_OPENAI_API_KEY=... AZURE_OPENAI_API_HOST=..."; \
-	fi
-	helm upgrade --install mini-chat gears/mini-chat/deploy/helm/mini-chat/ \
-		--set image.tag="$(MINI_CHAT_TAG)" \
-		--set secrets.azureOpenaiApiKey="$${AZURE_OPENAI_API_KEY}" \
-		--set secrets.azureOpenaiApiHost="$${AZURE_OPENAI_API_HOST}" \
-		--set postgres.host="$${PG_HOST:-postgres.default.svc.cluster.local}" \
-		--set postgres.password="$${PG_PASSWORD}"
-	kubectl rollout restart deployment/mini-chat
-	kubectl rollout status deployment/mini-chat --timeout=120s
-	@echo ""
-	@echo "mini-chat is running. In a separate terminal run:"
-	@echo "  make mini-chat-port-forward"
-	@echo "Then access: http://localhost:8087/cf/mini-chat"
-
-## Persistent port-forward with auto-reconnect (run in a separate terminal)
-mini-chat-port-forward:
-	$(call print_target_banner)
-	@echo "Port-forward: localhost:8087 -> svc/mini-chat:8087 (auto-reconnect, Ctrl+C to stop)"
-	@while true; do \
-		kubectl port-forward svc/mini-chat 8087:8087 2>&1 || true; \
-		echo "connection lost, reconnecting in 2s..."; \
-		sleep 2; \
-	done
-
-## Tear down mini-chat from the cluster
-mini-chat-down:
-	$(call print_target_banner)
-	helm uninstall mini-chat 2>/dev/null || true
-	@echo "mini-chat uninstalled"
-
 # -------- Main targets --------
 
-.PHONY: all dist check gear-ci ci ci_test ci_docs build build-debug .cargo-build .split-debug quickstart example mini-chat mini-chat-docker mini-chat-helm mini-chat-helm-template mini-chat-up mini-chat-down mini-chat-port-forward full-make-matrix
+.PHONY: all dist check gear-ci ci ci_test ci_docs build build-debug .cargo-build .split-debug quickstart example full-make-matrix
 
 # Start server with quickstart config
 quickstart:
@@ -1372,12 +1183,12 @@ oop-example:
 	cargo run --bin cf-gears-example-server --features oop-example,users-info-example,static-authn,static-authz,static-tenants,static-credstore -- --config config/quickstart.yaml run
 
 # Run all quality checks
-check: fmt cfs-validate docker-pins clippy lychee security dylint gts-docs test
+check: fmt docker-pins clippy lychee security dylint gts-docs test
 	$(call print_target_banner)
 
 # Lightweight quality check for gear-scoped CI (gear-scoped-ci.yml).
 # Runs only targets that need no extra tools beyond cargo, rustfmt, clippy,
-# nextest, and cargo-gears. Skips cfs-validate, lychee, security, dylint,
+# nextest, and cargo-gears. Skips lychee, security, dylint,
 # gts-docs, test-sqlite, e2e-local, and openapi.
 gear-ci: fmt clippy test
 	$(call print_target_banner)
@@ -1450,7 +1261,6 @@ all: check test-sqlite e2e-local openapi
 	@echo ""
 	@echo "  Next suggestions:"
 	@echo "    - make test-db        # run full DB integration tests"
-	@echo "    - make mini-chat-up   # deploy and try the mini-chat demo"
 	@echo ""
 	@echo "  Tip: run 'git status' to inspect changes."
 	@echo ""

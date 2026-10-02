@@ -1025,9 +1025,9 @@ impl AccessScope {
     /// *different* entity, one with no `owner_id`/`id` column of its own, where
     /// the removed terms never applied to the rows being filtered. It is wrong
     /// if you are narrowing a scope for the same entity, and the resulting
-    /// scope must not be the only thing authorizing the access: mini-chat, for
-    /// example, checks the parent chat against the full scope first and only
-    /// then uses `tenant_only()` for its messages.
+    /// scope must not be the only thing authorizing the access: a caller, for
+    /// example, checks the parent resource against the full scope first and only
+    /// then uses `tenant_only()` for its children.
     #[must_use]
     pub fn tenant_only(&self) -> Self {
         self.retain_properties(&[pep_properties::OWNER_TENANT_ID])

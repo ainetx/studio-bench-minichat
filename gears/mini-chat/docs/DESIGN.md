@@ -129,7 +129,7 @@ Long conversations are managed via thread summaries - a Level 1 compression stra
 | Presentation | Public REST/SSE API, authentication, routing | Axum (platform api_gateway) |
 | API | REST handlers, SSE adapters, routes, DTOs, error→Problem mapping (RFC 9457) | Axum handlers, utoipa |
 | Domain | Business rules, orchestration, PEP (PolicyEnforcer), context assembly, streaming relay, quota checks; repository traits (ports) | Rust, `authz_resolver_sdk` |
-| Infrastructure | Persistence (`infra/db`: SeaORM entities with `#[derive(Scopable)]`, ORM repositories, migrations); LLM communication (`infra/llm`: `ProviderResolver` and `providers/` with the four adapter kinds `openai_responses`, `openai_chat_completions`, `vllm_responses`, `anthropic_messages`, plus `DispatchingFileStorage` / `DispatchingVectorStore`, Anthropic Files client, `AzureKnowledgeRetriever`); OAGW upstream and route provisioning (`infra/oagw_provisioning.rs`); outbox enqueuer and handlers (`infra/outbox.rs`, `infra/workers/`); audit plugin gateway (`infra/audit_gateway.rs`); model policy gateway (`infra/model_policy`); leader election (`infra/leader`); OpenTelemetry metrics exported over OTLP (`infra/metrics.rs`) | SeaORM (Postgres or SQLite), `oagw_sdk::ServiceGatewayClientV1::proxy_request` (in-process), `toolkit_db::outbox` |
+| Infrastructure | Persistence (`infra/db`: SeaORM entities with `#[derive(Scopable)]`, ORM repositories, migrations); LLM communication (`infra/llm`: `ProviderResolver` and `providers/` with the four adapter kinds `openai_responses`, `openai_chat_completions`, `vllm_responses`, `anthropic_messages`, plus `DispatchingFileStorage` / `DispatchingVectorStore`, Anthropic Files client, `AzureKnowledgeRetriever`); OAGW upstream and route provisioning; outbox enqueuer and handlers (`infra/workers/`); audit plugin gateway; model policy gateway (`infra/model_policy`); leader election (`infra/leader`); OpenTelemetry metrics exported over OTLP | SeaORM (Postgres or SQLite), `oagw_sdk::ServiceGatewayClientV1::proxy_request` (in-process), `toolkit_db::outbox` |
 
 **MCP**: there is no MCP layer. MCP server support is not implemented; see [ADR-0006](./ADR/0006-cpt-cf-mini-chat-adr-mcp-deferred.md).
 
@@ -141,7 +141,7 @@ Long conversations are managed via thread summaries - a Level 1 compression stra
 
 - [ ] `p1` - **ID**: `cpt-cf-mini-chat-principle-tenant-scoped`
 
-Every data access is scoped by constraints issued by the AuthZ Resolver (PDP). At P1, chat content is owner-only: the PDP returns `eq` predicates on `owner_tenant_id` and `user_id` that the domain service (PEP, via PolicyEnforcer) compiles to `AccessScope` and applies as SQL WHERE clauses through Secure ORM (`#[derive(Scopable)]`). This replaces application-level tenant/user scoping with a formalized constraint model aligned with the platform's [Authorization Design](../../../docs/arch/authorization/DESIGN.md). Vector stores, file uploads, and quota checks all require tenant context. No API accepts or returns provider identifiers (`provider_file_id`, `vector_store_id`). Client-visible identifiers are internal UUIDs only (`attachment_id`, `chat_id`, etc.).
+Every data access is scoped by constraints issued by the AuthZ Resolver (PDP). At P1, chat content is owner-only: the PDP returns `eq` predicates on `owner_tenant_id` and `user_id` that the domain service (PEP, via PolicyEnforcer) compiles to `AccessScope` and applies as SQL WHERE clauses through Secure ORM (`#[derive(Scopable)]`). This replaces application-level tenant/user scoping with a formalized constraint model aligned with the platform's Authorization Design. Vector stores, file uploads, and quota checks all require tenant context. No API accepts or returns provider identifiers (`provider_file_id`, `vector_store_id`). Client-visible identifiers are internal UUIDs only (`attachment_id`, `chat_id`, etc.).
 
 #### Owner-Only Chat Content
 
@@ -173,7 +173,7 @@ Conversations are strictly linear sequences of turns. P1 does not support branch
 
 - [ ] `p1` - **ID**: `cpt-cf-mini-chat-constraint-openai-compatible`
 
-The original P1 constraint (OpenAI or Azure OpenAI only) is relaxed by [ADR-0005](./ADR/0005-cpt-cf-mini-chat-adr-multi-provider-adapters.md). Providers are configured as `providers.<id>` entries; each entry selects one of four in-process adapters (`openai_responses`, `openai_chat_completions`, `vllm_responses`, `anthropic_messages`), and each catalog model names its `provider_id`. The gear registers the OAGW upstream and route for every entry at startup. File and vector-store operations go to a storage-capable provider (`storage_kind` = `openai` or `azure`); an entry without its own file API (Anthropic) names one via `rag_provider`. Anthropic-specific behaviour is covered by the Anthropic Messages adapter (`infra/llm/providers/anthropic_messages.rs`).
+The original P1 constraint (OpenAI or Azure OpenAI only) is relaxed by [ADR-0005](./ADR/0005-cpt-cf-mini-chat-adr-multi-provider-adapters.md). Providers are configured as `providers.<id>` entries; each entry selects one of four in-process adapters (`openai_responses`, `openai_chat_completions`, `vllm_responses`, `anthropic_messages`), and each catalog model names its `provider_id`. The gear registers the OAGW upstream and route for every entry at startup. File and vector-store operations go to a storage-capable provider (`storage_kind` = `openai` or `azure`); an entry without its own file API (Anthropic) names one via `rag_provider`. Anthropic-specific behaviour is covered by the Anthropic Messages adapter.
 
 **Provider parity notes** (Azure OpenAI known limitations at time of writing):
 - Azure supports only **one vector store** per `file_search` tool call (sufficient for P1: one vector store per chat).
@@ -181,7 +181,7 @@ The original P1 constraint (OpenAI or Azure OpenAI only) is relaxed by [ADR-0005
 - `vector_stores.search` (client-side manual search) is not exposed on Azure - not used in this design.
 - New OpenAI features may appear on Azure with a lag of weeks to months.
 
-**Files API upload field mapping (P1)**: Mini Chat uploads documents and images via the provider Files API through OAGW. Mini-Chat sets `purpose="assistants"` on every OpenAI / Azure OpenAI Files API upload (documents and images; `attachment_service.rs`). Whether `assistants` is accepted for images sent as `input_image.file_id` is not verified against the providers ([#5022](https://github.com/constructorfabric/gears-rust/issues/5022)). The secondary copy uploaded to the Anthropic Files API (`anthropic_files_client.rs`) carries only the `file` part and no `purpose`. There is no per-provider upload field mapping, and OAGW does not change the multipart body.
+**Files API upload field mapping (P1)**: Mini Chat uploads documents and images via the provider Files API through OAGW. Mini-Chat sets `purpose="assistants"` on every OpenAI / Azure OpenAI Files API upload (documents and images). Whether `assistants` is accepted for images sent as `input_image.file_id` is not verified against the providers ([#5022](https://github.com/constructorfabric/gears-rust/issues/5022)). The secondary copy uploaded to the Anthropic Files API carries only the `file` part and no `purpose`. There is no per-provider upload field mapping, and OAGW does not change the multipart body.
 
 **Multimodal input (P1)**: image-aware chat uses the Responses API with multimodal input content arrays, not a separate Vision API. Image bytes are stored via the provider Files API and referenced by file ID in the Responses API request. P1 does not use URL-based image inputs because internal S3 storage is not externally reachable by the provider.
 
@@ -256,7 +256,7 @@ The budget MUST be computed after `resolve_effective_model()` (i.e., after quota
 
 Access requires a license feature on the tenant license, enforced by the platform's `license_manager` middleware on every route. Requests from unlicensed tenants receive HTTP 403.
 
-**Interim implementation**: the routes require the platform base license feature (`CORE_GLOBAL_BASE_LICENSE_FEATURE`, `gts.cf.core.lic.feat.v1~cf.core.global.base.v1`) until the license plugin exposes `ai_chat` (`api/rest/routes/mod.rs`). See [ADR-0008](./ADR/0008-cpt-cf-mini-chat-adr-quota-policy-scope.md).
+**Interim implementation**: the routes require the platform base license feature (`CORE_GLOBAL_BASE_LICENSE_FEATURE`, `gts.cf.core.lic.feat.v1~cf.core.global.base.v1`) until the license plugin exposes `ai_chat`. See [ADR-0008](./ADR/0008-cpt-cf-mini-chat-adr-quota-policy-scope.md).
 
 #### No Buffering
 
@@ -388,7 +388,7 @@ graph TB
 
 - [ ] `p1` - **ID**: `cpt-cf-mini-chat-component-chat-service`
 
-- **mini-chat gear** — A ToolKit gear (`#[toolkit::gear(name = "mini-chat", deps = [types_registry, authn_resolver, authz_resolver, oagw], capabilities = [db, rest, stateful])]`, `src/gear.rs`). The domain service layer is the core orchestrator and Policy Enforcement Point (PEP): receives user messages, evaluates authorization via AuthZ Resolver (PolicyEnforcer → AccessScope), builds context plan, invokes LLM via `llm_provider`, relays streaming tokens, persists messages and usage via infra/storage repositories, and evaluates the thread summary trigger during request processing using the assembled context/token estimate. When the trigger fires, thread-summary outbox work is transactionally enqueued in the transaction that durably persists or finalizes the causing turn; chat-deletion cleanup outbox work is transactionally enqueued in the transaction that durably applies chat soft-delete.
+- **mini-chat gear** — A ToolKit gear (`#[toolkit::gear(name = "mini-chat", deps = [types_registry, authn_resolver, authz_resolver, oagw], capabilities = [db, rest, stateful])]`). The domain service layer is the core orchestrator and Policy Enforcement Point (PEP): receives user messages, evaluates authorization via AuthZ Resolver (PolicyEnforcer → AccessScope), builds context plan, invokes LLM via `llm_provider`, relays streaming tokens, persists messages and usage via infra/storage repositories, and evaluates the thread summary trigger during request processing using the assembled context/token estimate. When the trigger fires, thread-summary outbox work is transactionally enqueued in the transaction that durably persists or finalizes the causing turn; chat-deletion cleanup outbox work is transactionally enqueued in the transaction that durably applies chat soft-delete.
 
 - [ ] `p1` - **ID**: `cpt-cf-mini-chat-component-chat-store`
 
@@ -396,21 +396,21 @@ graph TB
 
 - [ ] `p1` - **ID**: `cpt-cf-mini-chat-component-llm-provider`
 
-- **llm_provider** — Library residing in `infra/llm/` within the gear (not a standalone service; [ADR-0001](./ADR/0001-cpt-cf-mini-chat-adr-llm-provider-as-library.md)). `ProviderResolver` maps a catalog model's `provider_id` (and the tenant, via `tenant_overrides`) to a `providers.<id>` entry and its OAGW upstream alias. The adapter is selected by `ProviderKind` (`infra/llm/providers/mod.rs`, [ADR-0005](./ADR/0005-cpt-cf-mini-chat-adr-multi-provider-adapters.md)):
-  - `openai_responses` — OpenAI and Azure OpenAI Responses API (`openai_responses.rs`);
-  - `openai_chat_completions` — Chat Completions API (`openai_chat.rs`);
-  - `vllm_responses` — vLLM Responses API (`vllm_responses.rs`);
-  - `anthropic_messages` — Anthropic Messages API (`anthropic_messages.rs`).
+- **llm_provider** — Library residing in `infra/llm/` within the gear (not a standalone service; [ADR-0001](./ADR/0001-cpt-cf-mini-chat-adr-llm-provider-as-library.md)). `ProviderResolver` maps a catalog model's `provider_id` (and the tenant, via `tenant_overrides`) to a `providers.<id>` entry and its OAGW upstream alias. The adapter is selected by `ProviderKind` ([ADR-0005](./ADR/0005-cpt-cf-mini-chat-adr-multi-provider-adapters.md)):
+  - `openai_responses` — OpenAI and Azure OpenAI Responses API;
+  - `openai_chat_completions` — Chat Completions API;
+  - `vllm_responses` — vLLM Responses API;
+  - `anthropic_messages` — Anthropic Messages API.
 
-  Tool support differs by adapter. The Chat Completions adapter drops `file_search`, `web_search` and `code_interpreter` and keeps function tools (`search_knowledge`). The vLLM Responses adapter drops all tools, including function tools. The Anthropic adapter drops `file_search` and maps `web_search` and `code_interpreter` to its server tools. The domain service does not know the adapter kind: the tool list, the tool guards in the system prompt, the reserve surcharges and the daily web search and code interpreter quota checks are decided before the adapter runs, from the request, the chat's attachments, the kill switches and the catalog `tool_support`. The `web_search` and `file_search` tools are gated by the effective model's catalog `tool_support.web_search` / `tool_support.file_search`; `code_interpreter` by `tool_support.code_interpreter`. The reserve estimate of each cascade candidate counts the file_search, web_search and code_interpreter surcharges only when that model's `tool_support` allows the tool and, for file_search and code_interpreter, the kill switch is off (`estimate_input_tokens` in `quota_service.rs`). `search_knowledge` has no reserve surcharge. The gate is `tool_support`, not the adapter: on an adapter that drops a tool its `tool_support` still allows, the surcharge is still reserved, the guard is still sent and the daily quota is still checked. Operators should set `tool_support` in the catalog to match the adapter.
+  Tool support differs by adapter. The Chat Completions adapter drops `file_search`, `web_search` and `code_interpreter` and keeps function tools (`search_knowledge`). The vLLM Responses adapter drops all tools, including function tools. The Anthropic adapter drops `file_search` and maps `web_search` and `code_interpreter` to its server tools. The domain service does not know the adapter kind: the tool list, the tool guards in the system prompt, the reserve surcharges and the daily web search and code interpreter quota checks are decided before the adapter runs, from the request, the chat's attachments, the kill switches and the catalog `tool_support`. The `web_search` and `file_search` tools are gated by the effective model's catalog `tool_support.web_search` / `tool_support.file_search`; `code_interpreter` by `tool_support.code_interpreter`. The reserve estimate of each cascade candidate counts the file_search, web_search and code_interpreter surcharges only when that model's `tool_support` allows the tool and, for file_search and code_interpreter, the kill switch is off (`estimate_input_tokens`). `search_knowledge` has no reserve surcharge. The gate is `tool_support`, not the adapter: on an adapter that drops a tool its `tool_support` still allows, the surcharge is still reserved, the guard is still sent and the daily quota is still checked. Operators should set `tool_support` in the catalog to match the adapter.
 
   Each adapter builds the request, parses the provider SSE stream into internal events and maps errors. Requests go through the in-process `oagw_sdk::ServiceGatewayClientV1::proxy_request` to `{alias}{api_path}`. Tenant/user identity and metadata are attached to every chat and thread-summary request; each adapter sends what its protocol supports (see section 4: Provider Request Metadata). The library handles streaming chat and the non-streaming thread-summary call. File and vector-store operations use `DispatchingFileStorage` / `DispatchingVectorStore`, which pick the OpenAI or Azure implementation by the provider's `storage_kind` (or the `rag_provider` entry). When at least one entry uses `anthropic_messages`, `AnthropicFilesClient` is created. For a chat whose model is served by an `anthropic_messages` provider, it uploads a secondary copy of each uploaded image to the Anthropic Files API and deletes it on cleanup. Documents and images larger than `thumbnail.max_decode_bytes` get no copy.
 
-- **OAGW provisioning** (`infra/oagw_provisioning.rs`) — In `start()` the gear obtains an S2S security context from `authn_resolver` using `client_credentials` and registers an OAGW upstream and route for every provider entry and tenant override. `init()` fills `upstream_alias` with the host when it is not configured (for a tenant override, with the override's host), so an alias is always passed to OAGW; the upstream is created, or reused on `AlreadyExists`, under that alias. `ProviderResolver` is built in `init()` from these entries and routes by that alias. Registration in `start()` runs on a copy of the entries, so the alias OAGW returns does not reach the resolver. A deterministically misconfigured entry fails startup; an entry whose credstore secret is not yet readable is retried by a background reconcile task.
+- **OAGW provisioning** — In `start()` the gear obtains an S2S security context from `authn_resolver` using `client_credentials` and registers an OAGW upstream and route for every provider entry and tenant override. `init()` fills `upstream_alias` with the host when it is not configured (for a tenant override, with the override's host), so an alias is always passed to OAGW; the upstream is created, or reused on `AlreadyExists`, under that alias. `ProviderResolver` is built in `init()` from these entries and routes by that alias. Registration in `start()` runs on a copy of the entries, so the alias OAGW returns does not reach the resolver. A deterministically misconfigured entry fails startup; an entry whose credstore secret is not yet readable is retried by a background reconcile task.
 
-- **Knowledge retriever** — `KnowledgeRetriever` port (`domain/ports/knowledge_retriever.rs`) with the `AzureKnowledgeRetriever` implementation (`infra/llm/providers/azure_knowledge_retriever.rs`). Wired only when `knowledge_search.enabled = true`. See section 4 "Knowledge Search".
+- **Knowledge retriever** — `KnowledgeRetriever` port with the `AzureKnowledgeRetriever` implementation. Wired only when `knowledge_search.enabled = true`. See section 4 "Knowledge Search".
 
-- **Audit plugin and audit outbox** — Audit events are enqueued in the finalization or mutation transaction to the outbox queue `outbox.audit_queue_name` (default `mini-chat.audit`). `AuditEventHandler` deserializes the payload first: a corrupt payload is rejected (dead-lettered) whether or not a plugin is available. It then delivers the event through `AuditGateway` (`infra/audit_gateway.rs`) to the audit plugin resolved via types-registry (`MiniChatAuditPluginClientV1`); the bundled `static_audit` plugin logs them. When no plugin is registered, events are acknowledged and dropped, and counted in `mini_chat_audit_emit_total{result="dropped"}`. The "no plugin registered" result is not cached: every delivery looks the plugin up again, so a plugin registered later is used, and the warning is logged once per period without a plugin. A found instance id is cached. If the instance resolves in types-registry but its client is not in ClientHub, the delivery returns `Retry` (not acknowledged) and the cached instance id is reset. A `Retry` (this case, a resolution error, or a transient plugin error) is bounded: on the 120th attempt (`AUDIT_MAX_ATTEMPTS`, about an hour with the outbox backoff capped at 30 s) the event is dead-lettered and counted as `result="reject"`, so a misconfigured plugin does not block the partition. See [ADR-0009](./ADR/0009-cpt-cf-mini-chat-adr-data-lifecycle-audit-scope.md).
+- **Audit plugin and audit outbox** — Audit events are enqueued in the finalization or mutation transaction to the outbox queue `outbox.audit_queue_name` (default `mini-chat.audit`). `AuditEventHandler` deserializes the payload first: a corrupt payload is rejected (dead-lettered) whether or not a plugin is available. It then delivers the event through `AuditGateway` to the audit plugin resolved via types-registry (`MiniChatAuditPluginClientV1`); the bundled `static_audit` plugin logs them. When no plugin is registered, events are acknowledged and dropped, and counted in `mini_chat_audit_emit_total{result="dropped"}`. The "no plugin registered" result is not cached: every delivery looks the plugin up again, so a plugin registered later is used, and the warning is logged once per period without a plugin. A found instance id is cached. If the instance resolves in types-registry but its client is not in ClientHub, the delivery returns `Retry` (not acknowledged) and the cached instance id is reset. A `Retry` (this case, a resolution error, or a transient plugin error) is bounded: on the 120th attempt (`AUDIT_MAX_ATTEMPTS`, about an hour with the outbox backoff capped at 30 s) the event is dead-lettered and counted as `result="reject"`, so a misconfigured plugin does not block the partition. See [ADR-0009](./ADR/0009-cpt-cf-mini-chat-adr-data-lifecycle-audit-scope.md).
 
 - **Model policy gateway** (`infra/model_policy`) — Resolves the `mini-chat-model-policy-plugin` instance via types-registry; provides the policy snapshot (model catalog, kill switches) and user limits, and receives usage events from the `UsageEventHandler` outbox handler. The bundled plugin is `static_model_policy`.
 
@@ -535,7 +535,7 @@ System tasks (thread summary update) MUST be isolated from user-turn billing and
 
 **Outbox payload schema for system tasks:**
 
-System-task usage messages are enqueued to the Mini-Chat usage outbox queue (`outbox.queue_name`, default `mini-chat.usage_snapshot`) via `toolkit_db::outbox`, in the same transaction that upserts the thread summary. The payload is `mini_chat_sdk::UsageEvent` serialized as JSON (`src/infra/workers/thread_summary_worker.rs`):
+System-task usage messages are enqueued to the Mini-Chat usage outbox queue (`outbox.queue_name`, default `mini-chat.usage_snapshot`) via `toolkit_db::outbox`, in the same transaction that upserts the thread summary. The payload is `mini_chat_sdk::UsageEvent` serialized as JSON:
 
 ```json
 {
@@ -592,11 +592,11 @@ For automatic thread summary work, the serialized thread-summary outbox payload 
 
 - **orphan_watchdog** — P1 mandatory. Periodic background job that detects and cleans up turns abandoned by crashed pods. Transitions stale `running` turns to `failed` after a configurable timeout (default: 5 min) measured from durable `last_progress_at`, commits bounded quota debit, and enqueues the corresponding Mini-Chat usage message through `toolkit_db::outbox`. Runs under leader election: a gear-local Kubernetes Lease when built with the `k8s` feature, a no-op elector otherwise; double finalization is prevented by the CAS guard in either case ([ADR-0010](./ADR/0010-cpt-cf-mini-chat-adr-runtime-consistency-limitations.md)). See section "Turn Lifecycle, Crash Recovery and Orphan Handling" for full specification.
 
-- **upload_reaper** (`infra/workers/upload_reaper.rs`) — Periodic background job that fails attachments left in `pending` or `uploaded` by an upload whose request was dropped (client disconnect, api-gateway timeout) or whose process died before the service recorded the outcome; rows with a `cleanup_status` already set (owned by chat cleanup) are skipped. Such a row gets `status = failed`, `error_code = upload_abandoned`; when it has a `provider_file_id`, the same transaction enqueues an attachment cleanup event that deletes the provider file. Runs under the same leader elector as the orphan watchdog, with its own Lease (`mini-chat-upload-reaper`); the CAS on status, `cleanup_status IS NULL` and `updated_at` prevents double processing. See B.9.5.
+- **upload_reaper** — Periodic background job that fails attachments left in `pending` or `uploaded` by an upload whose request was dropped (client disconnect, api-gateway timeout) or whose process died before the service recorded the outcome; rows with a `cleanup_status` already set (owned by chat cleanup) are skipped. Such a row gets `status = failed`, `error_code = upload_abandoned`; when it has a `provider_file_id`, the same transaction enqueues an attachment cleanup event that deletes the provider file. Runs under the same leader elector as the orphan watchdog, with its own Lease (`mini-chat-upload-reaper`); the CAS on status, `cleanup_status IS NULL` and `updated_at` prevents double processing. See B.9.5.
 
 #### Gear lifecycle
 
-The gear implements `init`, `start` and `stop`, plus `RestApiCapability::register_rest` for the REST routes (`src/gear.rs`):
+The gear implements `init`, `start` and `stop`, plus `RestApiCapability::register_rest` for the REST routes:
 
 1. **`init`** — Loads `MiniChatConfig` (`deny_unknown_fields`) and validates every section (streaming, estimation budgets, quota, outbox, context, client credentials, providers and `rag_provider` references, orphan watchdog, upload reaper, thread-summary worker, cleanup worker, thumbnail, rag, knowledge search). Creates the model-policy and audit gateways (plugins are resolved lazily through types-registry), resolves the `authz_resolver`, `oagw` and `authn_resolver` clients from the ClientHub, and builds the per-provider file and vector-store implementations, metrics, the outbox enqueuer (the pipeline is not started yet), the knowledge retriever (only when enabled), the Anthropic Files client (only when an `anthropic_messages` entry exists) and the domain services. The REST routes are registered separately, in `RestApiCapability::register_rest`, from the services built in `init`. Gear migrations include the `toolkit_db::outbox` migrations.
 2. **`start`** — Prepares the leader elector when a leader-only worker (orphan watchdog, upload reaper) is enabled. Exchanges `client_credentials` for an S2S security context and registers OAGW upstreams and routes (see "OAGW provisioning"); misconfigured providers fail startup, deferred ones are retried in the background. Then starts the outbox pipeline with five queues: usage (`UsageEventHandler`), attachment cleanup, chat cleanup, thread summary (lease = `thread_summary_worker.claim_timeout_secs`) and audit (lease 60 s); the other queues use the `toolkit_db` default lease (30 s). Finally spawns the orphan watchdog and the upload reaper (the reaper enqueues attachment cleanup events, so it starts after the outbox pipeline).
@@ -634,7 +634,7 @@ Covers public API from PRD: `cpt-cf-mini-chat-interface-public-api`
 | `DELETE` | `/v1/chats/{id}/messages/{msg_id}/reaction` | Remove reaction from an assistant message | stable |
 | `GET` | `/v1/quota/status` | Per-tier, per-period quota status for the current user | stable |
 
-MCP endpoints (`/v1/mcp-servers*`, `/v1/admin/roles/*/mcp-servers*`, `/v1/chats/{id}/mcp-tools/effective`, `/v1/mcp-connections:complete`) are not implemented; see [ADR-0006](./ADR/0006-cpt-cf-mini-chat-adr-mcp-deferred.md). All paths are served under the gear URL prefix (`url_prefix`, default `/mini-chat`). The generated OpenAPI (`docs/api/api.json` at the repository root) is the reference for request and response schemas.
+MCP endpoints (`/v1/mcp-servers*`, `/v1/admin/roles/*/mcp-servers*`, `/v1/chats/{id}/mcp-tools/effective`, `/v1/mcp-connections:complete`) are not implemented; see [ADR-0006](./ADR/0006-cpt-cf-mini-chat-adr-mcp-deferred.md). All paths are served under the gear URL prefix (`url_prefix`, default `/mini-chat`). The generated OpenAPI document is the reference for request and response schemas.
 
 **Create Chat** (`POST /v1/chats`):
 
@@ -1140,7 +1140,7 @@ Keepalive to prevent idle-timeout disconnects by proxies and browsers (especiall
 
 **P1 Emission Rule (as implemented, [ADR-0010](./ADR/0010-cpt-cf-mini-chat-adr-runtime-consistency-limitations.md))**:
 
-- `event: ping` is sent only between `stream_started` and the first `delta` or `tool` event (`api/rest/sse.rs`, `StreamPhase`), every `sse_ping_interval_seconds` of idle time. The timer is reset by every event.
+- `event: ping` is sent only between `stream_started` and the first `delta` or `tool` event (`StreamPhase`), every `sse_ping_interval_seconds` of idle time. The timer is reset by every event.
 - After content starts, no `ping` events are sent. Axum sends an SSE comment keep-alive (`:` line) every 30 s, which keeps proxies from closing the connection. Clients receive no event for it.
 - **After terminal event**: no `ping` events are permitted after the terminal `done` or `error` event. The server closes the connection immediately after the terminal event (section "SSE stream close rules").
 
@@ -1175,7 +1175,7 @@ stream_started  ping*  (delta | tool)*  citations?  (done | error)
 
 1. **After terminal event**: the server MUST close the SSE connection (send EOF / drop the TCP stream) immediately after emitting the terminal `done` or `error` event. No further events (including `ping`) are permitted after the terminal event.
 2. **Client disconnect before terminal**: if the client drops the connection before the server emits a terminal event, the server MUST NOT attempt to emit an SSE `event: error` on the broken stream. The turn transitions to `cancelled` internally via the CAS finalizer (section 5.7). This applies both to the cancel-token path and to a disconnect observed as a failed channel send under backpressure. Billing settlement follows ABORTED rules (section 5.7, usage accounting rule 3).
-   A disconnect before the stream opens does not interrupt the setup: the send, retry and edit handlers run it in a spawned task (`run_to_completion` in `handlers/messages.rs`) and await it. A turn committed before the disconnect therefore gets its provider task, and the unsent response drops its `SseRelay`, which cancels the stream; the turn ends `cancelled` as above instead of staying `running` until the orphan watchdog.
+   A disconnect before the stream opens does not interrupt the setup: the send, retry and edit handlers run it in a spawned task (`run_to_completion`) and await it. A turn committed before the disconnect therefore gets its provider task, and the unsent response drops its `SseRelay`, which cancels the stream; the turn ends `cancelled` as above instead of staying `running` until the orphan watchdog.
 3. **Client disconnect after terminal**: if the client disconnects after the server has emitted the terminal event, the disconnect is a no-op — the terminal outcome from the provider stands and the disconnect does not alter the billing state or produce a second terminal event.
 4. **Indeterminate delivery**: SSE does not guarantee the client received the terminal event. The terminal state is authoritative in the database (`chat_turns.state`), not in the SSE stream. After any disconnect, clients MUST use the Turn Status API (`GET /v1/chats/{id}/turns/{request_id}`) to resolve uncertainty.
 
@@ -1218,7 +1218,7 @@ For streaming endpoints, failures before any streaming begins are returned as no
 - `context.field_violations[].reason` (`invalid_argument`, `out_of_range`);
 - `context.violations[]` (`failed_precondition`: `{subject, description, type}`; `resource_exhausted`: `{subject, description}`).
 
-The mapping is implemented in `api/rest/error.rs`:
+The mapping is:
 
 | Condition | Category | HTTP | Reason / violation |
 |---|---|---|---|
@@ -1265,13 +1265,13 @@ The mapping is implemented in `api/rest/error.rs`:
 | Upload concurrency limit | `service_unavailable` | 503 + `Retry-After` | `Retry-After: 5` (`context.retry_after_seconds = 5`) |
 | Internal / database error | `internal` | 500 | |
 
-`StreamError::Replay` maps to 409 `aborted` with reason `REPLAY` in `api/rest/error.rs`. The arm is defensive: the `messages:stream` handler intercepts `Replay` and serves the buffered SSE replay of the completed turn (`api/rest/handlers/messages.rs`), so clients do not receive this error.
+`StreamError::Replay` maps to 409 `aborted` with reason `REPLAY`. The arm is defensive: the `messages:stream` handler intercepts `Replay` and serves the buffered SSE replay of the completed turn, so clients do not receive this error.
 
 The quota scope is machine-readable in `context.violations[0].subject`; clients MUST NOT parse `detail`. Where this document says "reject with `quota_exceeded`", it means this 429 response. Not implemented and therefore never returned: the per-user daily image quota and the per-message image byte cap (`image_bytes_exceeded`), see [ADR-0008](./ADR/0008-cpt-cf-mini-chat-adr-quota-policy-scope.md).
 
 #### Streaming error codes
 
-Codes sent in the SSE `event: error` payload (`{code, message}`) after the stream has opened. The list reflects the codes emitted by `domain/service/stream_service/provider_task.rs`, `stream_service/types.rs` (`normalize_error`) and `api/rest/handlers/messages.rs`:
+Codes sent in the SSE `event: error` payload (`{code, message}`) after the stream has opened. The list reflects the codes emitted by the provider task, the error normalization (`normalize_error`) and the message handlers:
 
 | Code | Emitted when | Turn state |
 |---|---|---|
@@ -1550,7 +1550,7 @@ sequenceDiagram
 
 **Description**: Full lifecycle of a user message - from authorization through streaming LLM response to persistence and optional thread compression. Authorization is evaluated before any database access. The PEP sends an evaluation request to the AuthZ Resolver with the chat's resource type and ID; the returned constraints are applied to the DB query's WHERE clause. A PDP denial or a constraint compile failure returns 403; a PDP evaluation failure returns 503 with `Retry-After` (both fail closed). A missing or foreign chat returns 404 because the scoped query returns 0 rows. Context assembly and provider resolution run before the reserve transaction, so a failure in either step returns a JSON error and leaves no running turn or reserve. Audit events are delivered asynchronously from the `mini-chat.audit` outbox queue to the audit plugin.
 
-**Retry / edit variant** (`POST /turns/{request_id}/retry`, `PATCH /turns/{request_id}`, `api/rest/handlers/turns.rs`): the order differs so that a rejection never destroys the previous answer:
+**Retry / edit variant** (`POST /turns/{request_id}/retry`, `PATCH /turns/{request_id}`): the order differs so that a rejection never destroys the previous answer:
 
 1. `TurnService::preview_mutation` — read-only validation of the mutation (latest turn, terminal state, ownership).
 2. Resolve the chat model (without the enabled filter) and run `StreamService::preflight_mutation` — quota cascade, kill switches, image guards for the original message's images. A rejection returns a JSON error and changes nothing.
@@ -1645,7 +1645,7 @@ sequenceDiagram
 
 **Description**: File upload flow - synchronous within the request, except document indexing that is still running at the request deadline ([ADR-0007](./ADR/0007-cpt-cf-mini-chat-adr-document-retrieval-scope.md)). The file is uploaded to the RAG provider (OpenAI or Azure OpenAI, selected by `storage_kind` / `rag_provider`) via OAGW. There is no document-summary step. The subsequent steps depend on the attachment's resolved purposes (derived from MIME type, filtered by kill switches and model capabilities):
 
-- **Document with `file_search` purpose** (most document types): file is added to the chat's vector store (created on first upload) and metadata is persisted locally. `POST vector_stores/{id}/files` returns the file's indexing status. While it is `in_progress`, the upload polls `GET vector_stores/{id}/files/{file_id}`: the first wait is 250 ms, each next one doubles up to 2 s, and polling stops 25 s after the upload started (`UPLOAD_INDEXING_DEADLINE`, not configurable). The upload runs inside the request and api-gateway ends every request after 30 s; the deadline leaves time to answer. Each status read is bounded by the same deadline. A response without `status` counts as `in_progress` (polling goes on until the deadline); any status other than `in_progress` or `completed` (`failed`, `cancelled` or an unknown value) counts as failed (`into_status` in `rag_http_client.rs`). `completed` makes the attachment `ready`, so `file_search` can find the document as soon as the upload returns. A transient read error (provider 5xx, gateway failure) keeps polling. A failed status or any other status read error before the deadline marks the attachment `failed` with `error_code = indexing_failed` (a failed `POST vector_stores/{id}/files` sets the same code) and deletes the provider file (best effort, fire-and-forget `spawn_delete_file`, not retried), and the upload returns HTTP 503 `service_unavailable` with `Retry-After: 10` and the generic `detail` "Service temporarily unavailable"; `indexing_failed` is not in the response body. The provider writes (`POST files`, `POST vector_stores/{id}/files`) are not retried and carry no idempotency key: a client retry after the 503 is a new upload with a new attachment and a new provider file id. When the file is still `in_progress` at the deadline, the upload returns HTTP 201 with `status: uploaded` and spawns a background task (`BackgroundIndexing` in `attachment_service.rs`) that keeps polling for up to 10 minutes (`BACKGROUND_INDEXING_TIMEOUT`). It polls in rounds of 20 s (`BACKGROUND_HEARTBEAT_INTERVAL`), waiting 250 ms doubling up to 5 s between reads; each round first refreshes the row's `updated_at` (`touch_uploaded`), so the upload reaper does not take a row that is still being indexed (B.9.5). A response without `status` keeps polling here too; the 10-minute limit ends it. `completed` makes the attachment `ready`. `failed`, `cancelled`, a non-transient status read error or the 10-minute timeout mark it `failed` with `error_code = indexing_failed` and `cleanup_status = pending`, in the same transaction as an attachment cleanup outbox event (`event_type = attachment_indexing_failed`); the outbox attachment cleanup deletes the provider file with retries (there is no inline delete). When the row is deleted, is no longer `uploaded`, or belongs to a deleted chat (`cleanup_status` set by chat deletion), the task stops without changes; such a row never becomes `ready`. A message that references the attachment before it is `ready` is rejected with 400 `invalid_argument` (`invalid_attachment`). The task is not persisted: on gear stop the wait is cancelled, and if the process stops during the wait, the row stays `uploaded` and the upload reaper marks it `failed` with `error_code = upload_abandoned`. Status transitions: `pending` -> `uploaded` -> `ready`, or -> `failed`.
+- **Document with `file_search` purpose** (most document types): file is added to the chat's vector store (created on first upload) and metadata is persisted locally. `POST vector_stores/{id}/files` returns the file's indexing status. While it is `in_progress`, the upload polls `GET vector_stores/{id}/files/{file_id}`: the first wait is 250 ms, each next one doubles up to 2 s, and polling stops 25 s after the upload started (`UPLOAD_INDEXING_DEADLINE`, not configurable). The upload runs inside the request and api-gateway ends every request after 30 s; the deadline leaves time to answer. Each status read is bounded by the same deadline. A response without `status` counts as `in_progress` (polling goes on until the deadline); any status other than `in_progress` or `completed` (`failed`, `cancelled` or an unknown value) counts as failed (`into_status`). `completed` makes the attachment `ready`, so `file_search` can find the document as soon as the upload returns. A transient read error (provider 5xx, gateway failure) keeps polling. A failed status or any other status read error before the deadline marks the attachment `failed` with `error_code = indexing_failed` (a failed `POST vector_stores/{id}/files` sets the same code) and deletes the provider file (best effort, fire-and-forget `spawn_delete_file`, not retried), and the upload returns HTTP 503 `service_unavailable` with `Retry-After: 10` and the generic `detail` "Service temporarily unavailable"; `indexing_failed` is not in the response body. The provider writes (`POST files`, `POST vector_stores/{id}/files`) are not retried and carry no idempotency key: a client retry after the 503 is a new upload with a new attachment and a new provider file id. When the file is still `in_progress` at the deadline, the upload returns HTTP 201 with `status: uploaded` and spawns a background task (`BackgroundIndexing`) that keeps polling for up to 10 minutes (`BACKGROUND_INDEXING_TIMEOUT`). It polls in rounds of 20 s (`BACKGROUND_HEARTBEAT_INTERVAL`), waiting 250 ms doubling up to 5 s between reads; each round first refreshes the row's `updated_at` (`touch_uploaded`), so the upload reaper does not take a row that is still being indexed (B.9.5). A response without `status` keeps polling here too; the 10-minute limit ends it. `completed` makes the attachment `ready`. `failed`, `cancelled`, a non-transient status read error or the 10-minute timeout mark it `failed` with `error_code = indexing_failed` and `cleanup_status = pending`, in the same transaction as an attachment cleanup outbox event (`event_type = attachment_indexing_failed`); the outbox attachment cleanup deletes the provider file with retries (there is no inline delete). When the row is deleted, is no longer `uploaded`, or belongs to a deleted chat (`cleanup_status` set by chat deletion), the task stops without changes; such a row never becomes `ready`. A message that references the attachment before it is `ready` is rejected with 400 `invalid_argument` (`invalid_attachment`). The task is not persisted: on gear stop the wait is cancelled, and if the process stops during the wait, the row stays `uploaded` and the upload reaper marks it `failed` with `error_code = upload_abandoned`. Status transitions: `pending` -> `uploaded` -> `ready`, or -> `failed`.
 - **Document with `code_interpreter` purpose only** (XLSX): file is uploaded to the provider via Files API but is NOT added to the vector store. It is available to the `code_interpreter` tool at stream time via `tools[].container.file_ids` in the provider request. Status transitions: `pending` -> `uploaded` -> `ready`, or -> `failed`.
 - **Document with multiple purposes** (future): both the vector store indexing path and other purpose-specific paths execute independently. All matching purpose paths must succeed for the attachment to reach `ready`.
 - **Image** (`attachment_kind=image`): rejected with 400 `FEATURE_DISABLED` while `disable_images` is on. Otherwise the file is uploaded to the provider via Files API but is NOT added to the vector store. After a successful provider upload, the server generates a preview thumbnail using the Rust `image` crate ([https://docs.rs/image/latest/image/](https://docs.rs/image/latest/image/)). Thumbnail generation is a synchronous step during image attachment processing (before transitioning to `ready`). The resulting thumbnail raw bytes are stored in the Mini Chat database (`attachments.img_thumbnail` BYTEA column). Status transitions: `pending` -> `uploaded` -> `ready`, or -> `failed`. The image is available for multimodal input in subsequent Responses API calls via the internally stored `provider_file_id` (never exposed to clients). **Invariant**: `status=ready` implies `provider_file_id` is present AND the provider upload succeeded. If the provider file is deleted or becomes inaccessible (e.g., via cleanup), the attachment status MUST transition away from `ready` (to `failed` or be removed).
@@ -1656,7 +1656,7 @@ sequenceDiagram
   - **Resize policy**: fit inside configured `thumbnail.width` x `thumbnail.height` (deployment config), preserve aspect ratio, no cropping. Default target: 128x128 pixels.
   - **Output format**: `image/webp` (fixed).
   - **Size bound**: the encoded WebP thumbnail (raw binary bytes, not the base64 string) MUST NOT exceed `thumbnail.max_bytes` (default: 131072 bytes / 128 KiB). If it does, thumbnail generation is skipped; there is no retry with lower quality (attachment still transitions to `ready` with `img_thumbnail = null`).
-  - **Security safeguards** (`domain/service/thumbnail.rs`): thumbnail generation is skipped when the uploaded image is larger than `thumbnail.max_decode_bytes` (default: 33,554,432 bytes / 32 MiB; such bytes are not kept in memory during the upload), when the header dimensions give `width * height` above `thumbnail.max_pixels` (default: 100,000,000), or when the estimated decoded size `width * height * 4` is above `thumbnail.max_decode_bytes`. The header checks are a pre-screening heuristic, not a security boundary — malformed images may advertise small header dimensions while expanding on decode. The decoder therefore runs with `image::Limits::max_alloc = thumbnail.max_decode_bytes`; if decoding needs more, it fails and the attachment still becomes `ready` with `img_thumbnail = null`.
+  - **Security safeguards**: thumbnail generation is skipped when the uploaded image is larger than `thumbnail.max_decode_bytes` (default: 33,554,432 bytes / 32 MiB; such bytes are not kept in memory during the upload), when the header dimensions give `width * height` above `thumbnail.max_pixels` (default: 100,000,000), or when the estimated decoded size `width * height * 4` is above `thumbnail.max_decode_bytes`. The header checks are a pre-screening heuristic, not a security boundary — malformed images may advertise small header dimensions while expanding on decode. The decoder therefore runs with `image::Limits::max_alloc = thumbnail.max_decode_bytes`; if decoding needs more, it fails and the attachment still becomes `ready` with `img_thumbnail = null`.
   - **Failure tolerance**: if thumbnail generation fails for any reason (decode error, unsupported sub-format, memory pressure), the attachment processing MAY still succeed — the attachment transitions to `ready` with `img_thumbnail = null`. Thumbnail failure does not set `error_code` on the attachment; `error_code` is only set when the attachment itself fails (e.g., provider upload failure).
 
   **Thumbnail configuration knobs** (deployment config):
@@ -1780,7 +1780,7 @@ The default compression threshold SHOULD be **80% of the effective input token b
 
 The effective input token budget is defined as:
 
-`effective_budget = min(max_input_tokens, context_window - max_output_tokens_applied)` (effective model's catalog entry; `max_input_tokens = 0` means no separate limit), and the proactive threshold is `effective_budget * compression_threshold_pct / 100`. Tool surcharges and `fixed_overhead_tokens` are not subtracted here (`should_trigger_summary` in `finalization_service.rs`).
+`effective_budget = min(max_input_tokens, context_window - max_output_tokens_applied)` (effective model's catalog entry; `max_input_tokens = 0` means no separate limit), and the proactive threshold is `effective_budget * compression_threshold_pct / 100`. Tool surcharges and `fixed_overhead_tokens` are not subtracted here (`should_trigger_summary`).
 
 If the trigger conditions above are met (proactive or urgent), the system MUST enqueue durable thread-summary work in the transaction that durably persists or finalizes the causing turn.
 
@@ -2269,7 +2269,7 @@ Writers MUST populate `chat_id` from the parent message's `messages.chat_id` (no
 **Semantics**:
 - One attachment may be referenced by multiple messages (M:N). This occurs when a turn is retried or edited — the new user message re-links the same attachment(s).
 - Attachments remain owned by the **chat** (`attachments.chat_id`). This table adds per-message association for UI rendering without changing attachment lifecycle or vector store ownership.
-- The `attachments` array in the API `Message` object is built by a separate batch query after the message page is loaded (`batch_attachment_summaries` in `message_repo.rs`): an inner join of `message_attachments` to `attachments` for the page's message IDs that excludes soft-deleted attachments (`attachments.deleted_at IS NULL`), projecting only the `AttachmentSummary` fields (`attachment_id`, `kind`, `filename`, `status`, `img_thumbnail`).
+- The `attachments` array in the API `Message` object is built by a separate batch query after the message page is loaded (`batch_attachment_summaries`): an inner join of `message_attachments` to `attachments` for the page's message IDs that excludes soft-deleted attachments (`attachments.deleted_at IS NULL`), projecting only the `AttachmentSummary` fields (`attachment_id`, `kind`, `filename`, `status`, `img_thumbnail`).
 - For assistant and system messages, the join table will have zero rows (empty `attachments` array in API response).
 
 #### Table: thread_summaries
@@ -2509,7 +2509,7 @@ Mini Chat does NOT require the `tenant_closure` local projection table for chat 
 
 The `tenant_closure` projection table exists in the platform authorization model for gears that use hierarchical tenant scoping, but it is unused for Mini Chat content operations.
 
-Schema is defined in the [Authorization Design](../../../docs/arch/authorization/DESIGN.md#table-schemas-local-projections).
+Schema is defined in the Authorization Design.
 
 **P2+ note**: When chat sharing (projects) is introduced, `resource_group_membership` and optionally `resource_group_closure` tables will also be required.
 
@@ -2517,7 +2517,7 @@ Schema is defined in the [Authorization Design](../../../docs/arch/authorization
 
 - [ ] `p1` - **ID**: `cpt-cf-mini-chat-design-authz-pep`
 
-Mini Chat acts as a Policy Enforcement Point (PEP) per the platform's PDP/PEP authorization model defined in [Authorization Design](../../../docs/arch/authorization/DESIGN.md). The domain service (via PolicyEnforcer) builds evaluation requests, sends them to the AuthZ Resolver (PDP), and compiles returned constraints into `AccessScope` which Secure ORM (`#[derive(Scopable)]`) applies as SQL WHERE clauses.
+Mini Chat acts as a Policy Enforcement Point (PEP) per the platform's PDP/PEP authorization model defined in Authorization Design. The domain service (via PolicyEnforcer) builds evaluation requests, sends them to the AuthZ Resolver (PDP), and compiles returned constraints into `AccessScope` which Secure ORM (`#[derive(Scopable)]`) applies as SQL WHERE clauses.
 
 Policy (P1): chat content is owner-only. For all content operations, authorization MUST enforce:
 
@@ -2775,7 +2775,7 @@ Same authorization flow as Example 2 (Get Chat), but with `"action": { "name": "
 
 #### Fail-Closed Behavior
 
-Mini Chat follows the platform's fail-closed rules (see [Authorization Design - Fail-Closed Rules](../../../docs/arch/authorization/DESIGN.md#fail-closed-rules)):
+Mini Chat follows the platform's fail-closed rules (see Authorization Design - Fail-Closed Rules):
 
 | Condition | PEP Action |
 |-----------|------------|
@@ -2897,7 +2897,7 @@ PATCH MUST NOT introduce a separate execution path for settlement or outbox emis
 
 Only the latest turn can be retried, edited or deleted. A summary never covers the turn that triggered it: its frozen target frontier is the last message before that turn (see "Thread Summary"). It can still cover the latest turn: after a DELETE of the latest turn, the previous turn becomes the latest, and a summary triggered by the deleted turn may already cover it.
 
-Rule (`drop_summary_covering_turn` in `turn_service.rs`):
+Rule (`drop_summary_covering_turn`):
 
 - In the retry, edit and delete transaction, after the old turn and its messages are soft-deleted, the service reads the chat's `thread_summaries` row. If the summary frontier `(summarized_up_to_created_at, summarized_up_to_message_id)` is at or after the turn's user message `(created_at, id)`, the row is deleted in the same transaction and `is_compressed` is cleared on all messages of the chat (`ThreadSummaryRepository::delete_for_chat`). Otherwise the summary is kept.
 - Until the next summary, context assembly reads the uncompressed history, bounded by the token budget. The next summary trigger builds a new summary with no base frontier over all live messages up to its target.
@@ -3033,7 +3033,7 @@ input_limit  = min(max_input_tokens, context_window - max_output_tokens_applied)
 token_budget = input_limit - tool/web_search/code_interpreter surcharges - fixed_overhead_tokens
 ```
 
-All values are those of the effective model's catalog entry (`context_window`, `max_input_tokens`, `estimation_budgets`); surcharges apply only for tools included in the request (`compute_available_budget` in `context_assembly.rs`). If `max_output_tokens_applied >= context_window`, or the deductions reach `input_limit`, the turn fails with `CONTEXT_BUDGET_EXCEEDED`.
+All values are those of the effective model's catalog entry (`context_window`, `max_input_tokens`, `estimation_budgets`); surcharges apply only for tools included in the request (`compute_available_budget`). If `max_output_tokens_applied >= context_window`, or the deductions reach `input_limit`, the turn fails with `CONTEXT_BUDGET_EXCEEDED`.
 
 **Truncation classification**:
 
@@ -3103,7 +3103,7 @@ The result is reversed to chronological order for ContextPlan assembly. K is `co
 
 The `file_search` tool is only provided to the LLM after at least one document attachment has been uploaded and reached `ready` status in the chat. Before any attachments exist, the backend MUST NOT include `file_search` in Responses API calls because no vector store exists for the chat.
 
-Once document attachments exist, the backend includes the `file_search` tool on every model request with the chat vector store ID in the tool's flat `vector_store_ids` field (`{"type": "file_search", "vector_store_ids": [...], "max_num_results": N}`, Responses API format; `infra/llm/providers/openai_responses.rs`). The provider/model decides whether to actually invoke the tool.
+Once document attachments exist, the backend includes the `file_search` tool on every model request with the chat vector store ID in the tool's flat `vector_store_ids` field (`{"type": "file_search", "vector_store_ids": [...], "max_num_results": N}`, Responses API format). The provider/model decides whether to actually invoke the tool.
 
 **P1 constraint**: the backend MUST NOT infer document references from free-form user text. All attachment association is via `attachment_ids`, resolved to `attachment_id` values by the UI before the request is sent.
 
@@ -3305,7 +3305,7 @@ The lookup MUST be restricted to the current `chat_id` to preserve tenant and ch
 1. If a matching attachment row is found and the attachment is not soft-deleted (`deleted_at IS NULL`), the citation MUST include the corresponding `attachment_id` and set `title` to the attachment's `filename`.
 2. If no matching attachment is found (e.g., provider returns an unknown file ID), the citation MUST be omitted from the `citations` event. The backend MUST NOT expose the raw `provider_file_id` to the client.
 3. If the attachment exists but is soft-deleted (`deleted_at IS NOT NULL`), the citation MUST be omitted. The raw provider identifier MUST NOT be returned.
-4. There is no `(chat_id, provider_file_id)` index. Before the provider call, `build_provider_file_id_map` (`attachment_repo.rs`) reads the chat's `ready`, non-deleted attachments with a non-null `provider_file_id` through the `(tenant_id, chat_id)` index and builds an in-memory `provider_file_id → (attachment_id, filename)` map; citations are resolved against that map. It is built only when `file_search` is enabled for the turn.
+4. There is no `(chat_id, provider_file_id)` index. Before the provider call, `build_provider_file_id_map` reads the chat's `ready`, non-deleted attachments with a non-null `provider_file_id` through the `(tenant_id, chat_id)` index and builds an in-memory `provider_file_id → (attachment_id, filename)` map; citations are resolved against that map. It is built only when `file_search` is enabled for the turn.
 
 **Provider identifier non-exposure invariant**: provider-specific identifiers (such as `provider_file_id`, `vector_store_id`) are internal integration details and MUST NOT appear in any public API payloads, SSE event payloads, or error messages. See also the normative non-exposure invariant in section 3.3 (SSE Events).
 
@@ -3347,7 +3347,7 @@ Deletion follows a two-phase approach using the transactional outbox pattern (se
 **Phase 1 — Transactional commit (synchronous, within the HTTP request)**:
 
 1. Soft-delete the `attachments` row (`deleted_at = now()`).
-2. Enqueue a message to the `mini-chat.attachment_cleanup` queue (`OutboxEnqueuer::enqueue_attachment_cleanup`, partitioned by tenant). The payload is `AttachmentCleanupEvent` (`domain/repos/outbox_enqueuer.rs`) serialized as JSON:
+2. Enqueue a message to the `mini-chat.attachment_cleanup` queue (`OutboxEnqueuer::enqueue_attachment_cleanup`, partitioned by tenant). The payload is `AttachmentCleanupEvent` serialized as JSON:
 
    | Field | Type | Value |
    |-------|------|-------|
@@ -3368,7 +3368,7 @@ After Phase 1 commits, the `file_search` tool inclusion check counts only `statu
 
 **Phase 2 — Asynchronous cleanup (decoupled outbox handler)**:
 
-The shared outbox pipeline delivers the `attachment_cleanup` message to `AttachmentCleanupHandler` (`infra/workers/cleanup_worker.rs`), which:
+The shared outbox pipeline delivers the `attachment_cleanup` message to `AttachmentCleanupHandler`, which:
 
 1. Acks the message without action if the parent chat is soft-deleted (chat-deletion cleanup owns the files).
 2. Marks cleanup done if `provider_file_id` is `null`.
@@ -3423,11 +3423,11 @@ There is no dedicated file search per-turn call limit. The number of built-in to
 Knowledge search lets the model query an organization-level knowledge base (one Azure OpenAI vector store configured for the deployment) through a function tool. It is separate from the per-chat `file_search` tool.
 
 - **Enablement**: `knowledge_search.enabled` (default `false`). When enabled, `knowledge_search.vector_store_id` and `knowledge_search.provider_id` are required (startup validation). Per request (`StreamService::build_knowledge_search_params`), the provider entry named by `knowledge_search.provider_id` must be of kind `openai_responses` or `anthropic_messages` (the kind selects the tool-result format), must have an upstream alias for the tenant and a non-empty `api_version`, and the retriever must be wired. When any of these is missing, the parameters are not built and knowledge search is off for the request (with a warning): neither the `search_knowledge` tool nor `knowledge_search.guard` is sent. The config documents that this entry is an Azure (`storage_kind = "azure"`) provider; this is not validated.
-- **Components**: the `KnowledgeRetriever` port (`domain/ports/knowledge_retriever.rs`) and its `AzureKnowledgeRetriever` implementation (`infra/llm/providers/azure_knowledge_retriever.rs`), which calls `POST /{alias}/openai/vector_stores/{vector_store_id}/search?api-version={ver}` through OAGW. The retriever is constructed in `init()` only when the feature is enabled.
+- **Components**: the `KnowledgeRetriever` port and its `AzureKnowledgeRetriever` implementation, which calls `POST /{alias}/openai/vector_stores/{vector_store_id}/search?api-version={ver}` through OAGW. The retriever is constructed in `init()` only when the feature is enabled.
 - **Tool**: `search_knowledge` is added as a function tool, and `knowledge_search.guard` is appended to the system prompt. The model supplies `query` and optionally `top_k`, which is capped at `knowledge_search.top_k` (default 5). Each chunk is trimmed to `knowledge_search.max_chunk_chars` (default 2000) and returned to the model as a `function_call_output`.
-- **Agentic loop** (`domain/service/stream_service/provider_task.rs`): each `search_knowledge` call ends the current provider request with a tool-use outcome; the gear runs the retrieval, appends the call and its output to the input and issues the next provider request. At most `knowledge_search.max_calls_per_message` (default 3) retrievals run per message; further calls get a "search limit reached" output so the model answers from what it has. The loop is hard-capped at `max_calls_per_message + 2` iterations; exceeding it finalizes the turn as `failed` with SSE `error{code: "agentic_iterations_exceeded"}`. A tool use for any other function name ends the turn with `unexpected_tool_use`.
+- **Agentic loop**: each `search_knowledge` call ends the current provider request with a tool-use outcome; the gear runs the retrieval, appends the call and its output to the input and issues the next provider request. At most `knowledge_search.max_calls_per_message` (default 3) retrievals run per message; further calls get a "search limit reached" output so the model answers from what it has. The loop is hard-capped at `max_calls_per_message + 2` iterations; exceeding it finalizes the turn as `failed` with SSE `error{code: "agentic_iterations_exceeded"}`. A tool use for any other function name ends the turn with `unexpected_tool_use`.
 - **Mutual exclusion with `file_search`**: when the chat has ready documents and `file_search` is included, the knowledge-search parameters are not built and `search_knowledge` is not offered for that turn (file_search wins, to avoid double retrieval and double billing). The two tools are never sent in the same request.
-- **Accounting**: successful retrievals are counted in `chat_turns.file_search_completed_count`. The `file_search_calls` field of the usage and audit events comes from the in-memory `knowledge_call_count`, which is incremented before the retrieval runs, so failed `search_knowledge` retrievals are counted there but not in `file_search_completed_count` (`stream_service/provider_task.rs`); the orphan watchdog reports `file_search_completed_count`. Provider-native `file_search` calls (tool `done` events) update both counters; the two tools are never enabled in the same request, so the counts do not mix. Only the final provider iteration's usage is settled; billing of the earlier agentic iterations is **not implemented** ([ADR-0008](./ADR/0008-cpt-cf-mini-chat-adr-quota-policy-scope.md)).
+- **Accounting**: successful retrievals are counted in `chat_turns.file_search_completed_count`. The `file_search_calls` field of the usage and audit events comes from the in-memory `knowledge_call_count`, which is incremented before the retrieval runs, so failed `search_knowledge` retrievals are counted there but not in `file_search_completed_count`; the orphan watchdog reports `file_search_completed_count`. Provider-native `file_search` calls (tool `done` events) update both counters; the two tools are never enabled in the same request, so the counts do not mix. Only the final provider iteration's usage is settled; billing of the earlier agentic iterations is **not implemented** ([ADR-0008](./ADR/0008-cpt-cf-mini-chat-adr-quota-policy-scope.md)).
 - **Metrics**: `mini_chat_knowledge_search{result}`, `mini_chat_knowledge_search_latency_ms`, `mini_chat_knowledge_search_chunks`.
 
 ### MCP Servers Support
@@ -3444,7 +3444,7 @@ The canonical model catalog is provided by `mini-chat-model-policy-plugin` (sect
 
 Each entry specifies the model identifier, provider, tier, capability flags, limits and UI metadata. The domain service uses the catalog to resolve model selection, validate user requests, execute the downgrade cascade, size the request and serve the Models API (section 3.3).
 
-**Fields per entry** (`mini-chat-sdk/src/models.rs`):
+**Fields per entry**:
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -3687,7 +3687,7 @@ Every request sent to the LLM provider via `llm_provider` carries the caller ide
 "user": "{tenant_id_hex}{user_id_hex}"
 ```
 
-- The two UUIDs in simple (hyphen-less, 32 hex) form, tenant first: exactly 64 characters. OpenAI and Azure OpenAI reject a `user` longer than 64 characters, so the earlier `{tenant_id}:{user_id}` form (73 characters) failed every request (`UserIdentity::provider_user` in `infra/llm/request.rs`). When either id is not a UUID, the value falls back to `{tenant_id}:{user_id}`.
+- The two UUIDs in simple (hyphen-less, 32 hex) form, tenant first: exactly 64 characters. OpenAI and Azure OpenAI reject a `user` longer than 64 characters, so the earlier `{tenant_id}:{user_id}` form (73 characters) failed every request (`UserIdentity::provider_user`). When either id is not a UUID, the value falls back to `{tenant_id}:{user_id}`.
 
 - Chat requests (`messages:stream`, retry, edit) use the tenant and user of the request's security context.
 - The thread summary request uses the system identity: the chat's tenant and the platform default subject (`DEFAULT_SUBJECT_ID`).
@@ -3738,7 +3738,7 @@ This is the normalized internal representation; provider-specific request shapin
 
 ### Cancellation Observability
 
-Cancellation path metrics. All carry a `trigger` label; P1 records only `trigger="disconnect"` (the only cancellation source is a client disconnect). The `user_stop` and `timeout` values are declared in `metric_labels.rs` but never emitted.
+Cancellation path metrics. All carry a `trigger` label; P1 records only `trigger="disconnect"` (the only cancellation source is a client disconnect). The `user_stop` and `timeout` values are declared but never emitted.
 
 | Metric | Type | P1 status | Description |
 |--------|------|-----------|-------------|
@@ -3760,16 +3760,16 @@ Mini Chat MUST instrument OpenTelemetry metrics (exported over OTLP; alert rules
 
 - Metrics use the `mini_chat_` prefix (configurable via `metrics.prefix`).
 - Metric labels MUST NOT include high-cardinality identifiers such as `tenant_id`, `user_id`, `chat_id`, `request_id`, `provider_response_id`, filenames, or free-form error strings.
-- Allowed label sets MUST be limited to low-cardinality dimensions. The label keys the code emits (`domain/ports/metric_labels.rs`, used by `infra/metrics.rs`) are:
+- Allowed label sets MUST be limited to low-cardinality dimensions. The label keys the code emits are:
   - `provider`: provider ID (one value per configured `providers.<id>` entry)
   - `model`: limited set of pre-defined model identifiers from the model catalog (no auto-discovery)
   - `provider_kind`, `resource_type`, `kind`, `tier`, `state`
   - `stage`, `op`, `reason`, `error_code` (streaming error codes), `decision`, `period` (`daily|monthly`), `trigger`, `result`
-  - `from_status` (`pending|uploaded`, upload reaper only; written as a literal in `infra/metrics.rs`, not defined in `metric_labels.rs`)
+  - `from_status` (`pending|uploaded`, upload reaper only; written as a literal, not defined with the other label keys)
 
 #### Metric series (as implemented)
 
-Instruments are defined in `infra/metrics.rs` (OpenTelemetry meter). The toolkit exports metrics over OTLP (`libs/toolkit/src/telemetry/init.rs`); there is no Prometheus exporter in the process. The prefix is `metrics.prefix` (default: the gear name in snake case, `mini_chat`). The names below are the instrument names; counters are listed without the `_total` suffix. Whether `_total` is appended depends on the OTLP-to-Prometheus conversion downstream (the OpenTelemetry Collector and Prometheus OTLP ingestion usually append it) and is not controlled by this gear. Gauges carry no `{instance}` label.
+Instruments are defined on an OpenTelemetry meter. The toolkit exports metrics over OTLP; there is no Prometheus exporter in the process. The prefix is `metrics.prefix` (default: the gear name in snake case, `mini_chat`). The names below are the instrument names; counters are listed without the `_total` suffix. Whether `_total` is appended depends on the OTLP-to-Prometheus conversion downstream (the OpenTelemetry Collector and Prometheus OTLP ingestion usually append it) and is not controlled by this gear. Gauges carry no `{instance}` label.
 
 ##### Emitted
 
@@ -3813,7 +3813,7 @@ Instruments are defined in `infra/metrics.rs` (OpenTelemetry meter). The toolkit
 
 ##### Declared but not recorded (deferred)
 
-These instruments are registered in `infra/metrics.rs` but no code path records them: `stream_replay`, `quota_preflight_v2`, `quota_tier_downgrade`, `quota_negative`, `quota_overshoot_tokens`, `quota_image_commit`, `tokens_after_cancel`, `time_from_ui_disconnect_to_cancel_ms`, `cancel_orphan`, `tool_calls`, `tool_call_limited`, `file_search_latency_ms`, `web_search_latency_ms`, `web_search_disabled`, `citations_count`, `citations_by_source`, `retrieval_latency_ms`, `retrieval_chunks_returned`, `retrieval_zero_hit`, `indexed_chunks_per_chat`, `upload_rejected`, `vector_stores_per_user`, `context_truncation`, `provider_requests`, `provider_errors`, `provider_latency_ms`, `oagw_retries`, `oagw_upstream_latency_ms`, `oagw_circuit_open`, `attachment_index`, `attachment_summary`, `attachments_failed`, `attachment_index_latency_ms`, `image_turns`, `media_rejected`, `cleanup_backlog`, `audit_redaction_hits`, `summary_regen`, `outbox_enqueue`, `outbox_dispatch`, `outbox_dead`, `outbox_dead_rows`, `outbox_pending_age_seconds`, `outbox_oldest_pending_age_seconds`, `db_query_latency_ms`, `db_errors`, `unknown_error_code`, `credits_overflow` (all with the `mini_chat_` prefix).
+These instruments are registered but no code path records them: `stream_replay`, `quota_preflight_v2`, `quota_tier_downgrade`, `quota_negative`, `quota_overshoot_tokens`, `quota_image_commit`, `tokens_after_cancel`, `time_from_ui_disconnect_to_cancel_ms`, `cancel_orphan`, `tool_calls`, `tool_call_limited`, `file_search_latency_ms`, `web_search_latency_ms`, `web_search_disabled`, `citations_count`, `citations_by_source`, `retrieval_latency_ms`, `retrieval_chunks_returned`, `retrieval_zero_hit`, `indexed_chunks_per_chat`, `upload_rejected`, `vector_stores_per_user`, `context_truncation`, `provider_requests`, `provider_errors`, `provider_latency_ms`, `oagw_retries`, `oagw_upstream_latency_ms`, `oagw_circuit_open`, `attachment_index`, `attachment_summary`, `attachments_failed`, `attachment_index_latency_ms`, `image_turns`, `media_rejected`, `cleanup_backlog`, `audit_redaction_hits`, `summary_regen`, `outbox_enqueue`, `outbox_dispatch`, `outbox_dead`, `outbox_dead_rows`, `outbox_pending_age_seconds`, `outbox_oldest_pending_age_seconds`, `db_query_latency_ms`, `db_errors`, `unknown_error_code`, `credits_overflow` (all with the `mini_chat_` prefix).
 
 ##### Not defined
 
@@ -4053,7 +4053,7 @@ A running turn is an orphan candidate only if its state is still `running`, `del
 Long-running turns with recent `last_progress_at` updates MUST NOT be classified as orphaned solely because `started_at` is old.
 
 **Action** (all steps in a single DB transaction, using the orphan-specific finalization CAS guard):
-1. The watchdog MAY discover orphan candidates using any equivalent stale-progress scan. Candidate discovery is advisory only and MUST NOT by itself authorize finalization. Each scan fetches at most 100 candidates (`BATCH_LIMIT` in `orphan_watchdog.rs`, not configurable); the rest are picked up by later scans.
+1. The watchdog MAY discover orphan candidates using any equivalent stale-progress scan. Candidate discovery is advisory only and MUST NOT by itself authorize finalization. Each scan fetches at most 100 candidates (`BATCH_LIMIT`, not configurable); the rest are picked up by later scans.
 2. When the watchdog identifies a row as an orphan candidate by the stale-progress rule, emit `mini_chat_orphan_detected_total{reason="stale_progress"}`.
 3. Execute:
    ```sql
@@ -4081,7 +4081,7 @@ Each watchdog scan SHOULD record `mini_chat_orphan_scan_duration_seconds`.
 
 **Mechanism: gear-local leader election** ([ADR-0010](./ADR/0010-cpt-cf-mini-chat-adr-runtime-consistency-limitations.md))
 
-When built with the cargo feature `k8s` (the Docker image and Helm chart use it), the watchdog runs under a gear-local Kubernetes Lease elector (`infra/leader/k8s_lease.rs`; requires `POD_NAMESPACE` and `POD_NAME`), and only the leader pod executes scans. The Lease is `mini-chat-orphan-watchdog` in the pod's namespace (the upload reaper uses its own Lease, `mini-chat-upload-reaper`; the elector creates a missing Lease at runtime, see B.9.1), with a 15 s lease duration and a 2 s renew period (hardcoded). Without the feature a no-op elector is used (single-process mode) and every instance scans. In both cases double finalization is prevented by the CAS guard below.
+When built with the cargo feature `k8s` (the Docker image and Helm chart use it), the watchdog runs under a gear-local Kubernetes Lease elector (requires `POD_NAMESPACE` and `POD_NAME`), and only the leader pod executes scans. The Lease is `mini-chat-orphan-watchdog` in the pod's namespace (the upload reaper uses its own Lease, `mini-chat-upload-reaper`; the elector creates a missing Lease at runtime, see B.9.1), with a 15 s lease duration and a 2 s renew period (hardcoded). Without the feature a no-op elector is used (single-process mode) and every instance scans. In both cases double finalization is prevented by the CAS guard below.
 
 **Configuration Example**:
 
@@ -4566,7 +4566,7 @@ Both rules are enforced: `credits_micro_checked` fails with `ZeroMultiplier` whe
    - `in_mult`, `out_mult` in `1..=10,000,000,000` (ten billion micro-credits per 1M tokens = 10,000 credits per 1M tokens, or 0.01 credit per token). A zero multiplier is rejected: it would make that usage free.
    - Where the bounds are validated:
      - At plugin init: the bundled `static_model_policy` plugin validates its catalog (`StaticMiniChatPolicyPluginConfig::validate`); an entry with a multiplier outside `1..=MAX_MULT`, or with `estimation_budgets.bytes_per_token_conservative = 0`, fails `init()`. A snapshot from another policy plugin is not validated on load: a zero `bytes_per_token_conservative` there is clamped to 1 by the estimator, and a cascade candidate whose reserve cannot be computed (for example a zero multiplier) is logged at `warn` and treated as unavailable.
-     - On every credit computation: `credits_micro_checked` (`domain/service/credit_arithmetic.rs`) checks both token counts against `MAX_TOKENS` and both multipliers against `1..=MAX_MULT` (`ZeroMultiplier`, `MultiplierOverflow`) before multiplying. This covers the reserve at preflight and every settlement.
+     - On every credit computation: `credits_micro_checked` checks both token counts against `MAX_TOKENS` and both multipliers against `1..=MAX_MULT` (`ZeroMultiplier`, `MultiplierOverflow`) before multiplying. This covers the reserve at preflight and every settlement.
      - Provider-reported usage is not validated when the provider response is parsed; out-of-range token counts are caught by the credit computation at settlement.
    - A validation failure stops the computation before the multiplication; what happens next depends on where it was computed (see "Error handling" below)
 
@@ -4638,9 +4638,9 @@ Both rules are enforced: `credits_micro_checked` fails with `ZeroMultiplier` whe
    - Forward compatibility for future model scaling
 
 **Error handling:** the outcome depends on where the computation fails:
-- At preflight the reserve of each cascade candidate is computed with `credits_micro_checked(...).unwrap_or(i64::MAX)` (`quota_service.rs`). An overflow or a zero multiplier gives a reserve of `i64::MAX`, which does not fit the candidate's buckets, so the candidate counts as unavailable: the cascade downgrades to the next candidate or rejects with 429 `quota_exceeded`. It does not return 500.
+- At preflight the reserve of each cascade candidate is computed with `credits_micro_checked(...).unwrap_or(i64::MAX)`. An overflow or a zero multiplier gives a reserve of `i64::MAX`, which does not fit the candidate's buckets, so the candidate counts as unavailable: the cascade downgrades to the next candidate or rejects with 429 `quota_exceeded`. It does not return 500.
 - At settlement the error is mapped to an internal `DomainError` and the finalization transaction fails; the turn is not finalized on that path, a warning is logged with the error (which names the offending token count or multiplier), and the stream ends with SSE `error` code `finalization_failed` instead of `done` (on a failed stream the client gets the original error code).
-- The `mini_chat_credits_overflow` counter is registered in `infra/metrics.rs`, but no code path records it (see the list of unrecorded instruments in the observability section).
+- The `mini_chat_credits_overflow` counter is registered, but no code path records it (see the list of unrecorded instruments in the observability section).
 
 #### 5.3.1 Reserve vs Settlement Variables (Canonical Glossary)
 
@@ -5192,7 +5192,7 @@ Where (all values from the `estimation_budgets` of the model catalog entry, sect
 
 - `BYTES_PER_TOKEN_CONSERVATIVE` — `estimation_budgets.bytes_per_token_conservative` (integer; e.g. 3).
 - `fixed_overhead_tokens` — `estimation_budgets.fixed_overhead_tokens` (integer).
-- `safety_margin_pct` — `estimation_budgets.safety_margin_pct` (integer percentage; e.g. `20` means 20%). Applied with integer arithmetic, multiplying first: `estimated_text_tokens = ceil(base_estimate * (100 + safety_margin_pct) / 100)` (`token_estimator.rs`). An empty message yields `fixed_overhead_tokens` before the margin.
+- `safety_margin_pct` — `estimation_budgets.safety_margin_pct` (integer percentage; e.g. `20` means 20%). Applied with integer arithmetic, multiplying first: `estimated_text_tokens = ceil(base_estimate * (100 + safety_margin_pct) / 100)`. An empty message yields `fixed_overhead_tokens` before the margin.
 
 Underestimation is unacceptable.
 Overestimation is acceptable.
@@ -5242,7 +5242,7 @@ code_interpreter_surcharge_tokens = estimation_budgets.code_interpreter_surcharg
 
 In P1, `tool_surcharge_tokens`, `web_search_surcharge_tokens` and `code_interpreter_surcharge_tokens` are **fixed per-turn budget additions**. They are applied once per request when the corresponding feature is enabled for the turn. They DO NOT scale with the number of internal tool invocations, search calls, retrieval passes, reranks, or provider sub-requests. The number of backend search calls or tool iterations the provider performs internally is considered an implementation detail and MUST NOT influence credit computation in P1.
 
-**Surcharge inputs (current behaviour)**: the surcharges are decided per cascade candidate during preflight (`quota_service.rs`), with the same gates that later build the tool list for the provider request. `tool_surcharge_tokens` is added when the chat has at least one ready document, the candidate model has `tool_support.file_search` and `disable_file_search` is off; `code_interpreter_surcharge_tokens` when the chat has at least one ready code-interpreter (XLSX) attachment, the candidate model has `tool_support.code_interpreter` and `disable_code_interpreter` is off; `web_search_surcharge_tokens` when the request has `web_search.enabled = true` and the candidate model has `tool_support.web_search`. A downgraded candidate is therefore estimated with its own tool support, and the reserve does not include a surcharge for a tool that is left out of the provider request. The daily web search quota is checked only for a candidate with `tool_support.web_search`, so a request with web search enabled on a model without web search support sends no tool and is not checked against it. A request with `web_search.enabled = true` under `disable_web_search` is rejected before estimation.
+**Surcharge inputs (current behaviour)**: the surcharges are decided per cascade candidate during preflight, with the same gates that later build the tool list for the provider request. `tool_surcharge_tokens` is added when the chat has at least one ready document, the candidate model has `tool_support.file_search` and `disable_file_search` is off; `code_interpreter_surcharge_tokens` when the chat has at least one ready code-interpreter (XLSX) attachment, the candidate model has `tool_support.code_interpreter` and `disable_code_interpreter` is off; `web_search_surcharge_tokens` when the request has `web_search.enabled = true` and the candidate model has `tool_support.web_search`. A downgraded candidate is therefore estimated with its own tool support, and the reserve does not include a surcharge for a tool that is left out of the provider request. The daily web search quota is checked only for a candidate with `tool_support.web_search`, so a request with web search enabled on a model without web search support sends no tool and is not checked against it. A request with `web_search.enabled = true` under `disable_web_search` is rejected before estimation.
 
 The surcharge model is **deterministic and independent of provider runtime behavior**: given the same policy snapshot and the same set of enabled features, the surcharge contribution to reserve is identical regardless of what the provider does internally during execution.
 
@@ -5448,7 +5448,7 @@ Where `in_mult` and `out_mult` are read from the policy snapshot identified by `
 **Shared outbox implementation**: Mini-Chat uses the shared `toolkit_db::outbox` subsystem implemented in `libs/toolkit-db/src/outbox`. The authoritative integration surface is:
 
 - `Outbox::enqueue(...)` / `Outbox::enqueue_batch(...)` for producers
-- `Outbox::builder(db).queue(name, partitions).leased(handler).lease(LeaseConfig)` for queue registration and worker startup (`src/gear.rs`)
+- `Outbox::builder(db).queue(name, partitions).leased(handler).lease(LeaseConfig)` for queue registration and worker startup
 - the `LeasedMessageHandler` trait (`async fn handle(&self, msg: &OutboxMessage) -> MessageResult`) for processing
 - `MessageResult::{Ok, Retry, Reject(reason)}` for processing outcomes
 - `dead_letter_*` operations for operator recovery of rejected messages
@@ -5503,7 +5503,7 @@ fn construct_dedupe_key(tenant_id: Uuid, turn_id: Uuid, request_id: Uuid) -> Str
 
 - the serialized JSON payload (`UsageEvent`): `tenant_id`, `user_id`, `chat_id`, `turn_id`, `request_id`, `effective_model`, `selected_model`, `terminal_state`, `billing_outcome`, `usage`, `actual_credits_micro`, `settlement_method`, `policy_version_applied`, `web_search_calls`, `code_interpreter_calls`, `file_search_calls`, `timestamp`, `requester_type`, `dedupe_key`, `system_task_type`
 
-Implementation: turn usage events (normal finalization and orphan finalization) are enqueued with `dedupe_key = {tenant_id}/{turn_id}/{request_id}` in the simple UUID form (`finalization_service.rs`, `turn_dedupe_key`).
+Implementation: turn usage events (normal finalization and orphan finalization) are enqueued with `dedupe_key = {tenant_id}/{turn_id}/{request_id}` in the simple UUID form (`turn_dedupe_key`).
 
 **Producer-side uniqueness (normative)**: the shared outbox library treats payloads as opaque bytes and does not enforce a Mini-Chat-specific `(namespace, topic, dedupe_key)` uniqueness rule. Exactly one logical enqueue per turn MUST therefore be achieved by the domain-side CAS winner in `chat_turns` finalization (section 5.7) or by the authoritative system-task terminal transition for background work. The serialized payload MUST still carry stable dedupe identifiers so downstream consumers can absorb duplicate deliveries caused by at-least-once processing.
 
@@ -5614,7 +5614,7 @@ ALL Mini-Chat turn finalization events (completed, failed, cancelled, orphan) th
 ```
 
 Where:
-- `tenant_id` — the tenant UUID as 32-char lowercase hex without hyphens (`Uuid::as_simple()`, `turn_dedupe_key` in `finalization_service.rs`)
+- `tenant_id` — the tenant UUID as 32-char lowercase hex without hyphens (`Uuid::as_simple()`, `turn_dedupe_key`)
 - `turn_id` — the `chat_turns.id` UUID, same format
 - `request_id` — the turn's correlation key UUID, same format
 
@@ -5734,7 +5734,7 @@ When the provider returns terminal data (`done` or `error` event):
      - End the provider task without a terminal event. The SSE relay then sends `error{code: "stream_interrupted"}`, which matches the `failed` state committed by the winner (the orphan watchdog); if the client already disconnected nothing is sent ([ADR-0010](./ADR/0010-cpt-cf-mini-chat-adr-runtime-consistency-limitations.md))
      - The client can use the Turn Status API to resolve the authoritative outcome
 
-**Implemented outcomes** (`provider_task.rs`, `FinalizationOutcome`):
+**Implemented outcomes** (`FinalizationOutcome`):
 
 - `done` is sent only when the CAS won **and** the committed state is `completed`.
 - If finalization downgraded the turn to `failed` because the assistant message could not be persisted, the client gets `error{code: "message_persistence_failed"}`.
@@ -5798,7 +5798,7 @@ A turn MUST NOT transition to `completed` unless the full assistant message cont
 - If the stream ends without a terminal `done`/`error` event and no durable assistant content exists, the turn follows the existing aborted-stream reconciliation path (section 5.8) and MUST NOT be marked `completed`.
 - Idempotent replay for `(chat_id, request_id)` (section 3.7 / Idempotency Rules) returns stored assistant content only for `completed` turns. For `failed`, `cancelled`, or `running` turns, the existing behavior applies (409 Conflict or Turn Status API guidance).
 
-**Consequence**: a turn with `state = completed` always has a committed assistant `messages` row. The row's text is not required to be non-empty: when the provider ends the stream with `done` (or `incomplete`) and no text deltas, the turn is finalized as `completed` with an empty assistant message (`provider_task.rs` passes the accumulated text as is, and `FinalizationService` always inserts the message for `completed`). Nothing rejects or retries such a turn.
+**Consequence**: a turn with `state = completed` always has a committed assistant `messages` row. The row's text is not required to be non-empty: when the provider ends the stream with `done` (or `incomplete`) and no text deltas, the turn is finalized as `completed` with an empty assistant message (the provider task passes the accumulated text as is, and `FinalizationService` always inserts the message for `completed`). Nothing rejects or retries such a turn.
 
 #### Usage accounting rules per outcome
 
@@ -5845,7 +5845,7 @@ Three subcases:
 
 **3) aborted** (client disconnect / pod crash / orphan watchdog):
 
-- An aborted turn always settles `estimated`: the cancel path finalizes with `usage = None` (`stream_service/provider_task.rs`), and the orphan watchdog has no usage either. For failed turns, **"usage known" requires a `usage` object with at least one non-zero field** (`input_tokens > 0` OR `output_tokens > 0`; `has_known_usage`); a `usage` object present with both fields equal to zero (or missing) is treated as "usage unknown" and MUST follow the estimated path — not the actual path. A completed turn is not subject to this rule (it always settles actual). This prevents zero-charge exploitation: the no-free-cancel rule (§5.4 Settlement Definitions) mandates a non-zero debit whenever the provider request started; the estimated path enforces this via `minimal_generation_floor_applied`.
+- An aborted turn always settles `estimated`: the cancel path finalizes with `usage = None`, and the orphan watchdog has no usage either. For failed turns, **"usage known" requires a `usage` object with at least one non-zero field** (`input_tokens > 0` OR `output_tokens > 0`; `has_known_usage`); a `usage` object present with both fields equal to zero (or missing) is treated as "usage unknown" and MUST follow the estimated path — not the actual path. A completed turn is not subject to this rule (it always settles actual). This prevents zero-charge exploitation: the no-free-cancel rule (§5.4 Settlement Definitions) mandates a non-zero debit whenever the provider request started; the estimated path enforces this via `minimal_generation_floor_applied`.
 - Settle using the deterministic charged token formula: `charged_tokens = min(reserve_tokens, estimated_input_tokens + minimal_generation_floor_applied)` where `minimal_generation_floor_applied` is read from `chat_turns.minimal_generation_floor_applied` (persisted at preflight from MiniChat ConfigMap, immutable after insert), consistent with the cancel/disconnect rule (see section 3.2) and the aborted-stream reconciliation (section 5.8).
 - Emit the outbox message with `billing_outcome = "aborted"`, `settlement_method = "estimated"`.
 
@@ -5957,7 +5957,7 @@ The orphan watchdog demonstrates this separation:
 
 #### Internal Error Code Taxonomy (Normative)
 
-**Error codes stored in `chat_turns.error_code`** (as implemented; there is no Rust enum — the codes are strings, classified by `derive_billing_outcome` in `domain/model/billing_outcome.rs`):
+**Error codes stored in `chat_turns.error_code`** (as implemented; there is no Rust enum — the codes are strings, classified by `derive_billing_outcome`):
 
 | Code | Origin | Billing outcome | `settlement_method` |
 |------|--------|-----------------|---------------------|
@@ -6019,7 +6019,7 @@ The mapping table uses `error_code` values as predicates to classify pre-provide
 **Settlement Method Selection for ABORTED**: always `settlement_method = "estimated"` with the deterministic charged token formula (section 5.8). The cancel path finalizes with `usage = None` and the orphan watchdog has no usage, so usage the provider reported before the disconnect is not used.
 
 **Enforcement**:
-- This mapping is implemented in one shared function, `derive_billing_outcome` (`domain/model/billing_outcome.rs`), used by the stream finalization (`finalize_turn_cas`: completion, error and disconnect/cancellation) and by the orphan watchdog (`finalize_orphan_turn`).
+- This mapping is implemented in one shared function, `derive_billing_outcome`, used by the stream finalization (`finalize_turn_cas`: completion, error and disconnect/cancellation) and by the orphan watchdog (`finalize_orphan_turn`).
 - Every terminal path that emits an outbox event calls this function; no path constructs ad-hoc billing messages. `fail_unstarted_turn` (retry/edit setup failure before the reserve) emits no outbox event and does not call it.
 - Unit tests MUST verify that each internal condition row in the table above produces the exact `billing_outcome` and `settlement_method` specified.
 
@@ -6082,7 +6082,7 @@ MiniChatManager MUST receive exactly one usage event for every turn that took a 
 | `ABORTED` | `"aborted"` | `"actual"` or `"estimated"` | Deterministic formula or actual partial |
 
 **Allowed outbox enum values** (no other values are valid; the fields are strings in `mini_chat_sdk::UsageEvent`, not Rust enums):
-- `billing_outcome`: `"completed"`, `"failed"`, `"aborted"` for turns; `"system_task"` for the thread-summary usage event (`thread_summary_worker.rs`)
+- `billing_outcome`: `"completed"`, `"failed"`, `"aborted"` for turns; `"system_task"` for the thread-summary usage event
 - `settlement_method`: `"actual"`, `"estimated"`, `"released"` for turns; `"none"` for the thread-summary usage event
 
 **Invariant**: it MUST be impossible for `quota_usage` to be debited without a corresponding Mini-Chat outbox message being durably enqueued. The transactional atomicity guarantee (sections 5.6 and 5.7) applies to all billing states that hold a reserve (COMPLETED, FAILED post-reserve, ABORTED). If the transaction fails, neither the quota debit nor the outbox message is committed.
@@ -6305,7 +6305,7 @@ reserved_credits_micro_premium =
 
 **Tier availability check across all periods and buckets**
 
-Premium tier requires BOTH bucket `total` AND bucket `tier:premium` to pass for ALL periods. The code checks bucket `total` first, then `tier:premium`, each for day and then month, and stops at the first failure (`quota_service.rs`):
+Premium tier requires BOTH bucket `total` AND bucket `tier:premium` to pass for ALL periods. The code checks bucket `total` first, then `tier:premium`, each for day and then month, and stops at the first failure:
 
 Bucket `total`:
 **day:** 25_000_000 + 3_750_000 = 28_750_000 <= 60_000_000 -> passes
@@ -6481,7 +6481,7 @@ Not implemented in P1 and recorded in ADRs:
   - `cpt-cf-mini-chat-adr-data-lifecycle-audit-scope` — [ADR-0009](./ADR/0009-cpt-cf-mini-chat-adr-data-lifecycle-audit-scope.md) - P1 scope of data retention, chat deletion and audit content
   - `cpt-cf-mini-chat-adr-runtime-consistency-limitations` — [ADR-0010](./ADR/0010-cpt-cf-mini-chat-adr-runtime-consistency-limitations.md) - Accepted runtime and consistency limitations in P1
 - **Platform dependencies**:
-  - [Authorization Design](../../../docs/arch/authorization/DESIGN.md) - PDP/PEP model, predicate types, fail-closed rules, constraint compilation
+  - Authorization Design - PDP/PEP model, predicate types, fail-closed rules, constraint compilation
 
 ---
 
@@ -6824,7 +6824,7 @@ Legend:
 
 ## B.1 Gear config (ToolKit config)
 
-The gear configuration is `MiniChatConfig` (`src/config.rs`, worker sections in `src/config/background.rs`). It is declared with `#[serde(deny_unknown_fields)]`, as are all nested sections in `config.rs` (`streaming`, `estimation_budgets`, `quota`, `outbox`, `context`, `rag`, `client_credentials`, `metrics`, `providers.<id>` and its `tenant_overrides`, `thumbnail`, `knowledge_search`), so an unknown or misspelled key there fails startup. The worker sections in `config/background.rs` (`orphan_watchdog`, `upload_reaper`, `thread_summary_worker`, `cleanup_worker`) do not use `deny_unknown_fields`: unknown keys in them are accepted and ignored. Every section is validated in `init()`. Values support `${VAR}` expansion where marked `expand_vars` (provider `host` and `auth_config`, the same two fields in `tenant_overrides.<tenant_id>`, `client_credentials`).
+The gear configuration is `MiniChatConfig`. It is declared with `#[serde(deny_unknown_fields)]`, as are all nested sections (`streaming`, `estimation_budgets`, `quota`, `outbox`, `context`, `rag`, `client_credentials`, `metrics`, `providers.<id>` and its `tenant_overrides`, `thumbnail`, `knowledge_search`), so an unknown or misspelled key there fails startup. The worker sections (`orphan_watchdog`, `upload_reaper`, `thread_summary_worker`, `cleanup_worker`) do not use `deny_unknown_fields`: unknown keys in them are accepted and ignored. Every section is validated in `init()`. Values support `${VAR}` expansion where marked `expand_vars` (provider `host` and `auth_config`, the same two fields in `tenant_overrides.<tenant_id>`, `client_credentials`).
 
 | Parameter | Type | Default | Validation / notes |
 |-----------|------|---------|--------------------|
@@ -6849,7 +6849,7 @@ The gear configuration is `MiniChatConfig` (`src/config.rs`, worker sections in 
 | `storage_backend` | `string` | provider ID | Label stored in `attachments.storage_backend` / `chat_vector_stores.provider` |
 | `api_version` | `string` | — | Azure `api-version` for RAG requests. Required when `storage_kind = azure`: a missing or blank value fails startup validation. Only letters, digits, `.` and `-` are allowed: it is sent unencoded as `?api-version=…` |
 | `rag_provider` | `string` | — | Provider used for file / vector-store operations (e.g. for Anthropic) |
-| `tenant_overrides.<tenant_id>` | object | `{}` | `host`, `upstream_alias`, `auth_plugin_type`, `auth_config`; an override must set `host` or `upstream_alias`. Each field falls back to the provider entry on its own (`effective_*_for_tenant` in `config.rs`; an unset override `upstream_alias` is filled with the override `host` in `init()`), so an override that sets only `host` sends the provider's `auth_plugin_type` and `auth_config` (its credentials) to the tenant host. `host` and `auth_config` support `${VAR}` expansion, as on the provider entry; the override `host` has the same character check |
+| `tenant_overrides.<tenant_id>` | object | `{}` | `host`, `upstream_alias`, `auth_plugin_type`, `auth_config`; an override must set `host` or `upstream_alias`. Each field falls back to the provider entry on its own (`effective_*_for_tenant`; an unset override `upstream_alias` is filled with the override `host` in `init()`), so an override that sets only `host` sends the provider's `auth_plugin_type` and `auth_config` (its credentials) to the tenant host. `host` and `auth_config` support `${VAR}` expansion, as on the provider entry; the override `host` has the same character check |
 
 `providers.<id>.supports_file_search_filters` and `streaming.web_search_context_size` were removed; a config that still sets either fails startup (`deny_unknown_fields`, [ADR-0010](./ADR/0010-cpt-cf-mini-chat-adr-runtime-consistency-limitations.md)). The `web_search` tool uses the catalog entry's `web_search_context_size`.
 
@@ -7106,8 +7106,8 @@ The worker MUST depend on a `LeaderElector` abstraction rather than directly on 
 
 **Implementations**:
 
-- **`K8sLeaseElector`** (`infra/leader/k8s_lease.rs`, cargo feature `k8s`) — Used in Kubernetes deployments. Leadership is held per role through a Kubernetes Lease named `{prefix}-{role}` in the pod's namespace: `mini-chat-orphan-watchdog` for the orphan watchdog and `mini-chat-upload-reaper` for the upload reaper (lease duration 15 s, renew period 2 s); requires `POD_NAMESPACE` and `POD_NAME`. The elector creates a missing Lease at runtime. The prefix is hardcoded as `mini-chat` in the binary (`K8sLeaseConfig::from_env("mini-chat")` in `background_workers.rs`); the Helm value `leaderElection.prefix` only names the Leases the chart pre-creates, so changing it leaves those Leases unused while the pods keep using `mini-chat-*`. At most one pod holds leadership of a role at a time. Only the current orphan-watchdog leader claims and processes orphan turns.
-- **`NoopLeaderElector`** (`infra/leader/mod.rs`, used when built without `k8s`) — Used in environments without Kubernetes (for example local development, single-instance deployments, or deployments without a cluster control plane). `NoopLeaderElector` MUST always report that the current process is leader. This mode assumes that only one Mini Chat process runs or that duplicate watchdog execution is otherwise prevented by deployment policy.
+- **`K8sLeaseElector`** (cargo feature `k8s`) — Used in Kubernetes deployments. Leadership is held per role through a Kubernetes Lease named `{prefix}-{role}` in the pod's namespace: `mini-chat-orphan-watchdog` for the orphan watchdog and `mini-chat-upload-reaper` for the upload reaper (lease duration 15 s, renew period 2 s); requires `POD_NAMESPACE` and `POD_NAME`. The elector creates a missing Lease at runtime. The prefix is hardcoded as `mini-chat` in the binary (`K8sLeaseConfig::from_env("mini-chat")`); the Helm value `leaderElection.prefix` only names the Leases the chart pre-creates, so changing it leaves those Leases unused while the pods keep using `mini-chat-*`. At most one pod holds leadership of a role at a time. Only the current orphan-watchdog leader claims and processes orphan turns.
+- **`NoopLeaderElector`** (used when built without `k8s`) — Used in environments without Kubernetes (for example local development, single-instance deployments, or deployments without a cluster control plane). `NoopLeaderElector` MUST always report that the current process is leader. This mode assumes that only one Mini Chat process runs or that duplicate watchdog execution is otherwise prevented by deployment policy.
 
 Leader election determines **who runs the watchdog**, not **how orphan detection is evaluated**.
 
@@ -7273,9 +7273,9 @@ Lease durations: thread summary = `thread_summary_worker.claim_timeout_secs` (de
 | `upload_reaper.scan_interval_secs` | `u64` | `60` | `1..=3600` | gear config |
 | `upload_reaper.stale_after_secs` | `u64` | `300` | `60..=86400` | gear config |
 
-The upload runs inside the HTTP request. When the request future is dropped (client disconnect, api-gateway timeout) or the process dies mid-upload, the service never records the outcome, so the row stays `pending` or `uploaded` and its provider file is not deleted. A document upload stops polling indexing 25 s after the request started (`UPLOAD_INDEXING_DEADLINE` in `attachment_service.rs`), before the api-gateway request timeout (30 s) fires, so in practice the reaper handles client disconnects and process crashes. The minimum `stale_after_secs` (60) is above the api-gateway timeout, so a live upload is not reaped. A document still `in_progress` at that deadline is returned as `uploaded` and a background task keeps polling for up to 10 minutes; it refreshes `updated_at` every 20 s (`touch_uploaded`, `BACKGROUND_HEARTBEAT_INTERVAL`), well below the minimum `stale_after_secs`, so the reaper does not take the row while the task runs. The task stops without changes when the row belongs to a deleted chat (`cleanup_status` set; `touch_uploaded` and `cas_set_ready` require `cleanup_status IS NULL`), so such a row never becomes `ready` and chat cleanup owns its provider file. When indexing fails or times out, the task itself sets `status = 'failed'`, `error_code = 'indexing_failed'`, `cleanup_status = 'pending'` and enqueues an `AttachmentCleanupEvent` (`event_type = attachment_indexing_failed`) in one transaction; the reaper does not see that row. A timeout names the last transient status read error in the failure log (the first such error is logged at `warn`). If setting `ready` fails, the task retries 3 times over 7 s (`MARK_READY_ATTEMPTS`); if it still fails the row stays `uploaded` and the reaper later marks it `upload_abandoned`, which deletes the provider file of an indexed document, so the outcome is counted as `mini_chat_attachment_background_indexing{result="set_ready_failed"}`. The heartbeat interval is compile-time checked to be at most half the minimum `stale_after_secs`. The task is not persisted: on gear stop the wait is cancelled, and if the process stops during the wait, the row stays `uploaded`, `updated_at` is no longer refreshed, and the reaper marks it `upload_abandoned`.
+The upload runs inside the HTTP request. When the request future is dropped (client disconnect, api-gateway timeout) or the process dies mid-upload, the service never records the outcome, so the row stays `pending` or `uploaded` and its provider file is not deleted. A document upload stops polling indexing 25 s after the request started (`UPLOAD_INDEXING_DEADLINE`), before the api-gateway request timeout (30 s) fires, so in practice the reaper handles client disconnects and process crashes. The minimum `stale_after_secs` (60) is above the api-gateway timeout, so a live upload is not reaped. A document still `in_progress` at that deadline is returned as `uploaded` and a background task keeps polling for up to 10 minutes; it refreshes `updated_at` every 20 s (`touch_uploaded`, `BACKGROUND_HEARTBEAT_INTERVAL`), well below the minimum `stale_after_secs`, so the reaper does not take the row while the task runs. The task stops without changes when the row belongs to a deleted chat (`cleanup_status` set; `touch_uploaded` and `cas_set_ready` require `cleanup_status IS NULL`), so such a row never becomes `ready` and chat cleanup owns its provider file. When indexing fails or times out, the task itself sets `status = 'failed'`, `error_code = 'indexing_failed'`, `cleanup_status = 'pending'` and enqueues an `AttachmentCleanupEvent` (`event_type = attachment_indexing_failed`) in one transaction; the reaper does not see that row. A timeout names the last transient status read error in the failure log (the first such error is logged at `warn`). If setting `ready` fails, the task retries 3 times over 7 s (`MARK_READY_ATTEMPTS`); if it still fails the row stays `uploaded` and the reaper later marks it `upload_abandoned`, which deletes the provider file of an indexed document, so the outcome is counted as `mini_chat_attachment_background_indexing{result="set_ready_failed"}`. The heartbeat interval is compile-time checked to be at most half the minimum `stale_after_secs`. The task is not persisted: on gear stop the wait is cancelled, and if the process stops during the wait, the row stays `uploaded`, `updated_at` is no longer refreshed, and the reaper marks it `upload_abandoned`.
 
-Each scan (leader only, `infra/workers/upload_reaper.rs`):
+Each scan (leader only):
 
 1. `find_stale_uploads` selects at most 100 rows (`BATCH_LIMIT`, not configurable) with `status IN ('pending', 'uploaded') AND deleted_at IS NULL AND cleanup_status IS NULL AND updated_at < cutoff`, oldest `updated_at` first; `cutoff = now - stale_after_secs` (application clock). The rest are picked up by later scans.
 2. Per row, one transaction: `cas_abandon_upload` sets `status = 'failed'`, `error_code = 'upload_abandoned'`, `updated_at = now`, guarded by the same status, `deleted_at IS NULL`, `cleanup_status IS NULL` and `updated_at < cutoff`. `rows_affected = 0` (the upload finished, or the row was deleted or claimed by chat cleanup meanwhile) skips the row. Rows with a `cleanup_status` are skipped because chat deletion already owns their provider cleanup.

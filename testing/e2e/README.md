@@ -40,7 +40,7 @@ language:
   build features, ports, or extra infrastructure like a database container), so
   it cannot share the common server. In its `e2e.yaml` this is written as
   `launcher: pytest`, and the suite's own `conftest.py` starts and stops the
-  server. These must be run one at a time (e.g. `make e2e-mini-chat`).
+  server. These must be run one at a time (e.g. `make e2e-local SUITE=<suite>`).
 - **`launcher`** — the single field in a suite's `e2e.yaml` that says which of
   the two kinds above it is: `e2e-launcher` (shared server) or `pytest`
   (self-managed).
@@ -83,7 +83,7 @@ are three ways to use it:
 make e2e-local                     # run many suites: every shared-server suite, one shared server
 make e2e-local SUITE=file-parser   # run one suite: build its server + run its tests
 make e2e-local GEAR=credstore      # run every shared-server suite that exercises the credstore gear
-make e2e-local SUITE=mini-chat     # run one self-managed suite (it starts its own server)
+make e2e-local SUITE=usage-collector # run one self-managed suite (it starts its own server)
 make e2e-local-smoke               # smoke tests only (add SUITE=<name> or GEAR=<name> to focus)
 ```
 
@@ -196,7 +196,7 @@ features:
   - static-authz
 ```
 
-*Self-managed* suites (`launcher: pytest`, e.g. `mini-chat`, `usage-collector`)
+*Self-managed* suites (`launcher: pytest`, e.g. `usage-collector`)
 are skipped by `GEAR=` runs because they own their own server lifecycle. `SUITE=`
 and `GEAR=` cannot be combined.
 
@@ -214,13 +214,12 @@ in the most efficient way:
    automatically by scanning each `testing/e2e/suites/<suite>/e2e.yaml`.)
 
 **Self-managed suites are skipped by `make e2e-local`.** Suites that have
-`launcher: pytest` in `testing/e2e/suites/<suite>/e2e.yaml` (`mini-chat` and
+`launcher: pytest` in `testing/e2e/suites/<suite>/e2e.yaml` (e.g.
 `usage-collector`) need their own server — and `usage-collector` also needs a
 TimescaleDB container — so they can't use the shared server. Run each of them on
 its own instead:
 
 ```bash
-make e2e-mini-chat                    # or: make e2e-local SUITE=mini-chat
 make e2e-usage-collector              # or: make e2e-local SUITE=usage-collector
 ```
 
@@ -239,8 +238,6 @@ The `launcher` field in the test suite config `testing/e2e/suites/{SUITE}/e2e.ya
   spawns the server itself (gated on `E2E_BINARY`, which `run_e2e.py` sets
   automatically) — sometimes per test, with different features, ports, or
   containers. Examples:
-  - `mini-chat` runs an offline harness (`--mode offline`, its own
-    `config/base.yaml`).
   - `usage-collector` starts its own server **and** a TimescaleDB Docker
     container (its storage plugin migrates a real TimescaleDB at init).
   Here `ci.py` is intentionally not involved; `run_e2e.py` only builds the
@@ -469,7 +466,6 @@ async def test_my_endpoint(base_url, auth_headers):
 | `make e2e-local`                     | Local  | Run **many** suites: every shared-server suite against one shared server (self-managed suites skipped) |
 | `make e2e-local SUITE=file-parser`   | Local  | Run **one** suite: build its server + run its tests |
 | `make e2e-local-smoke`               | Local  | Smoke tests only (add `SUITE=<name>` to focus on one suite)  |
-| `make e2e-mini-chat`                 | Local  | Alias for `make e2e-local SUITE=mini-chat` (self-managed, offline) |
 | `make e2e-usage-collector`           | Local  | Alias for `make e2e-local SUITE=usage-collector` (self-managed; **requires Docker** for TimescaleDB) |
 | `make e2e-tr-authz`                  | Local  | resource-group suite, `tr-authz` profile  |
 

@@ -5,7 +5,7 @@
 //! # These repositories speak the domain's row types, not `SeaORM`'s
 //!
 //! Every method takes and returns the types in [`crate::domain::ports`], mapping
-//! its own `SeaORM` models at the edge — as `credstore` and `mini-chat` do.
+//! its own `SeaORM` models at the edge — as `credstore` does.
 //! [`super::store`] therefore holds no mapping, only the `&DbTx` port signatures
 //! the domain's dyn-safe traits need. [`EntityPage`] and [`PageRequest`] are port
 //! types too since T22a made discovery a port; they are re-exported here so a

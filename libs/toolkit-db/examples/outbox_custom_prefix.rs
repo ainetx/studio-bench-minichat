@@ -33,7 +33,7 @@ impl LeasedMessageHandler for PrintHandler {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let prefix = "mini_chat_outbox";
+    let prefix = "orders_db_outbox";
     let db = connect_db(
         "sqlite:file:outbox_custom_prefix?mode=memory&cache=shared",
         ConnectOpts {

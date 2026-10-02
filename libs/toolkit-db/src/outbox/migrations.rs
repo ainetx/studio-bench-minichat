@@ -885,14 +885,14 @@ mod tests {
 
     #[test]
     fn prefixed_migration_name_is_deterministic_and_distinct() {
-        let first = outbox_migrations_with_prefix("mini_chat_outbox").unwrap();
-        let second = outbox_migrations_with_prefix("mini_chat_outbox").unwrap();
+        let first = outbox_migrations_with_prefix("orders_db_outbox").unwrap();
+        let second = outbox_migrations_with_prefix("orders_db_outbox").unwrap();
 
         assert_eq!(first[0].name(), second[0].name());
         assert_ne!(first[0].name(), DEFAULT_OUTBOX_MIGRATION_NAME);
         assert_eq!(
             first[0].name(),
-            "m001_create_toolkit_outbox_schema__mini_chat_outbox"
+            "m001_create_toolkit_outbox_schema__orders_db_outbox"
         );
     }
 
@@ -915,24 +915,24 @@ mod tests {
     #[test]
     fn default_and_prefixed_migration_names_do_not_collide() {
         let default = outbox_migrations();
-        let prefixed = outbox_migrations_with_prefix("mini_chat_outbox").unwrap();
+        let prefixed = outbox_migrations_with_prefix("orders_db_outbox").unwrap();
 
         assert_ne!(default[0].name(), prefixed[0].name());
     }
 
     #[test]
     fn mysql_sequence_table_sql_uses_custom_prefix() {
-        let tables = OutboxTables::new("mini_chat_outbox").unwrap();
+        let tables = OutboxTables::new("orders_db_outbox").unwrap();
 
         let body_create = mysql_create_id_sequence_sql(tables.body_id_sequence());
         let incoming_create = mysql_create_id_sequence_sql(tables.incoming_id_sequence());
         let body_seed = mysql_seed_id_sequence_sql(tables.body_id_sequence());
         let incoming_seed = mysql_seed_id_sequence_sql(tables.incoming_id_sequence());
 
-        assert!(body_create.contains("mini_chat_outbox_body_id_sequence"));
-        assert!(incoming_create.contains("mini_chat_outbox_incoming_id_sequence"));
-        assert!(body_seed.contains("mini_chat_outbox_body_id_sequence"));
-        assert!(incoming_seed.contains("mini_chat_outbox_incoming_id_sequence"));
+        assert!(body_create.contains("orders_db_outbox_body_id_sequence"));
+        assert!(incoming_create.contains("orders_db_outbox_incoming_id_sequence"));
+        assert!(body_seed.contains("orders_db_outbox_body_id_sequence"));
+        assert!(incoming_seed.contains("orders_db_outbox_incoming_id_sequence"));
         assert!(!body_create.contains("toolkit_outbox_body_id_sequence"));
         assert!(!incoming_create.contains("toolkit_outbox_incoming_id_sequence"));
     }

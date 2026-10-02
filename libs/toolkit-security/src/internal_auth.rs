@@ -318,10 +318,10 @@ mod tests {
 
         let spiffe = PlatformIdentity::Spiffe {
             trust_domain: "example.org".to_owned(),
-            name: "mini-chat".to_owned(),
+            name: "example-gear".to_owned(),
             version: "1.0.0".to_owned(),
         };
-        assert_eq!(spiffe.peer_name(), "mini-chat");
+        assert_eq!(spiffe.peer_name(), "example-gear");
     }
 
     #[test]

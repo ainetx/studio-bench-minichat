@@ -16,7 +16,6 @@ updates:
   - package-ecosystem: "docker"
     directories:
       - "/testing/docker"
-      - "/gears/mini-chat/deploy/docker"
     schedule:
       interval: "weekly"
 

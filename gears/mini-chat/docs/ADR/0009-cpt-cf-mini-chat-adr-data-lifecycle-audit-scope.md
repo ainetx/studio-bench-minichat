@@ -47,8 +47,8 @@ Chosen option: "Record the implemented subset and mark the rest Not implemented"
 
 ### Confirmation
 
-* E2E: after `DELETE /chats/{id}`, the chat and its sub-resources return 404 and cleanup outbox rows are written (`testing/e2e/suites/mini_chat/test_cleanup.py`).
-* Unit tests in `mini-chat/src/domain/service/finalization_service.rs` pin the audit fields that are populated.
+* E2E: after `DELETE /chats/{id}`, the chat and its sub-resources return 404 and cleanup outbox rows are written.
+* Unit tests pin the audit fields that are populated.
 
 ## More Information
 

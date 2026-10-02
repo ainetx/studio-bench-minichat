@@ -11,7 +11,7 @@ date: 2026-09-26
 
 The original Mini Chat contract (PRD §7.2, DESIGN §3.3 "Error Codes") defined its own JSON error envelope `{code, message}`. It also defined per-error HTTP statuses such as 413 `file_too_large`, 415 `unsupported_file_type` and 502 `provider_error`, and required the SSE `error` event to reuse that envelope.
 
-The platform later moved every gear to the canonical error model in `toolkit-canonical-errors`. That model uses an RFC 9457 `Problem` with a fixed set of categories, each with a fixed HTTP status. Mini Chat was migrated in the same change (`dc9519b3c`, "canonical-error-aware extractors"; mapping in `mini-chat/src/api/rest/error.rs`). The gear's documents were never updated, so they described a wire format that clients no longer receive.
+The platform later moved every gear to the canonical error model in `toolkit-canonical-errors`. That model uses an RFC 9457 `Problem` with a fixed set of categories, each with a fixed HTTP status. Mini Chat was migrated in the same change (`dc9519b3c`, "canonical-error-aware extractors"). The gear's documents were never updated, so they described a wire format that clients no longer receive.
 
 This ADR records the contract that is actually served.
 
@@ -82,7 +82,7 @@ Chosen option: "Adopt the canonical `Problem` for REST, and keep `{code, message
 | Upload concurrency limit | `service_unavailable` | 503 + `Retry-After` | `Retry-After: 5` (`context.retry_after_seconds = 5`) |
 | Internal / database error | `internal` | 500 | |
 
-`StreamError::Replay` maps to 409 `aborted` with reason `REPLAY` in `api/rest/error.rs`. The arm is defensive: the `messages:stream` handler intercepts `Replay` and serves the buffered SSE replay of the completed turn (`api/rest/handlers/messages.rs`), so clients do not receive this error.
+`StreamError::Replay` maps to 409 `aborted` with reason `REPLAY`. The arm is defensive: the `messages:stream` handler intercepts `Replay` and serves the buffered SSE replay of the completed turn, so clients do not receive this error.
 
 **SSE `error` event.** Once the stream is open, a terminal failure is sent as `event: error` with `data: {code, message}`. This envelope is independent of `Problem`. The codes are listed in DESIGN §3.3 "Streaming error codes".
 
@@ -95,9 +95,9 @@ Chosen option: "Adopt the canonical `Problem` for REST, and keep `{code, message
 
 ### Confirmation
 
-* `mini-chat/src/api/rest/error.rs` unit tests pin the category, status and reason of the mappings they cover (not every variant has a dedicated test).
-* The E2E suite (`testing/e2e/suites/mini_chat`) asserts `Problem.type` and the reason fields through a shared `assert_problem` helper.
-* The generated OpenAPI (`docs/api/api.json`) is the reference for the response schemas.
+* Unit tests pin the category, status and reason of the mappings they cover (not every variant has a dedicated test).
+* The E2E suite asserts `Problem.type` and the reason fields.
+* The generated OpenAPI document is the reference for the response schemas.
 
 ## Pros and Cons of the Options
 
@@ -114,7 +114,7 @@ Chosen option: "Adopt the canonical `Problem` for REST, and keep `{code, message
 ## More Information
 
 * Supersedes the "Error Codes" table in DESIGN §3.3 and PRD §7.2 as they were before 2026-09.
-* The old `docs/openapi.json` was hand-written, described the superseded contract and was removed. The generated `docs/api/api.json` at the repository root is the source of truth.
+* The old hand-written OpenAPI document described the superseded contract and was removed. The generated OpenAPI document is the source of truth.
 
 ## Traceability
 

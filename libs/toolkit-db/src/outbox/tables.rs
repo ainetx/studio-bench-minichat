@@ -308,26 +308,26 @@ mod tests {
 
     #[test]
     fn custom_tables_are_derived_from_prefix() {
-        let tables = OutboxTables::new("mini_chat_outbox").unwrap();
+        let tables = OutboxTables::new("orders_db_outbox").unwrap();
 
-        assert_eq!(tables.body(), "mini_chat_outbox_body");
-        assert_eq!(tables.partitions(), "mini_chat_outbox_partitions");
-        assert_eq!(tables.incoming(), "mini_chat_outbox_incoming");
-        assert_eq!(tables.outgoing(), "mini_chat_outbox_outgoing");
-        assert_eq!(tables.dead_letters(), "mini_chat_outbox_dead_letters");
-        assert_eq!(tables.processor(), "mini_chat_outbox_processor");
-        assert_eq!(tables.vacuum_counter(), "mini_chat_outbox_vacuum_counter");
+        assert_eq!(tables.body(), "orders_db_outbox_body");
+        assert_eq!(tables.partitions(), "orders_db_outbox_partitions");
+        assert_eq!(tables.incoming(), "orders_db_outbox_incoming");
+        assert_eq!(tables.outgoing(), "orders_db_outbox_outgoing");
+        assert_eq!(tables.dead_letters(), "orders_db_outbox_dead_letters");
+        assert_eq!(tables.processor(), "orders_db_outbox_processor");
+        assert_eq!(tables.vacuum_counter(), "orders_db_outbox_vacuum_counter");
         assert_eq!(
             tables.body_id_sequence(),
-            "mini_chat_outbox_body_id_sequence"
+            "orders_db_outbox_body_id_sequence"
         );
         assert_eq!(
             tables.incoming_id_sequence(),
-            "mini_chat_outbox_incoming_id_sequence"
+            "orders_db_outbox_incoming_id_sequence"
         );
         assert_eq!(
             tables.idx_outgoing_partition_seq(),
-            "idx_mini_chat_outbox_outgoing_partition_seq"
+            "idx_orders_db_outbox_outgoing_partition_seq"
         );
     }
 
@@ -348,14 +348,14 @@ mod tests {
 
     #[test]
     fn custom_migration_name_is_deterministic_and_distinct() {
-        let first = OutboxTables::new("mini_chat_outbox").unwrap();
-        let second = OutboxTables::new("mini_chat_outbox").unwrap();
+        let first = OutboxTables::new("orders_db_outbox").unwrap();
+        let second = OutboxTables::new("orders_db_outbox").unwrap();
 
         assert_eq!(first.migration_name(), second.migration_name());
         assert_ne!(first.migration_name(), DEFAULT_OUTBOX_MIGRATION_NAME);
         assert_eq!(
             first.migration_name(),
-            "m001_create_toolkit_outbox_schema__mini_chat_outbox"
+            "m001_create_toolkit_outbox_schema__orders_db_outbox"
         );
     }
 
@@ -368,7 +368,7 @@ mod tests {
 
     #[test]
     fn valid_prefixes_are_accepted() {
-        for prefix in ["a", "outbox1", "toolkit_outbox", "mini_chat_outbox"] {
+        for prefix in ["a", "outbox1", "toolkit_outbox", "orders_db_outbox"] {
             assert!(OutboxTables::new(prefix).is_ok(), "{prefix}");
         }
     }
@@ -378,8 +378,8 @@ mod tests {
         for prefix in [
             "",
             "1outbox",
-            "mini chat",
-            "mini-chat",
+            "orders db",
+            "orders-db",
             "public.outbox",
             "outbox;",
             "outbox\"",

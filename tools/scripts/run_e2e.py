@@ -373,7 +373,7 @@ def discover_launcher_test_paths(global_cfg: dict[str, Any]) -> list[str]:
     The unscoped `make e2e-local` (no SUITE) runs the tests against a single
     shared server, so it must only collect suites that fit that model. Passing
     these explicit paths to pytest excludes self-managed (`launcher: pytest`)
-    suites like `mini-chat` / `usage-collector` \u2014 which own their own server and
+    suites \u2014 which own their own server and
     would otherwise just be collected and skipped \u2014 rather than relying on their
     conftest to opt out.
     """

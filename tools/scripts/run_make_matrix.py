@@ -22,7 +22,7 @@ Notes:
   - The repo does not define a top-level ``make clean`` target, so reset
     steps use CLEAN_CMD.
   - The runner continues after failures and prints a summary at the end.
-  - Long-running server targets like ``make run`` and ``make mini-chat``
+  - Long-running server targets like ``make run``
     are intentionally excluded from presets.
 """
 
@@ -246,7 +246,7 @@ def load_extended(b: MatrixBuilder) -> None:
     b.append("make openapi GEAR=file-parser", "make openapi GEAR=file-storage",
              "make openapi",
              "make e2e-local-smoke", "make e2e-local",
-             "make e2e-mini-chat", "make e2e-usage-collector",
+             "make e2e-usage-collector",
              "make e2e-tr-authz")
     b.trim_trailing_clean()
 

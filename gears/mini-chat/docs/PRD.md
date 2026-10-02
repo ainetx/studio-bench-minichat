@@ -761,9 +761,9 @@ The system MUST resolve MCP tools at stream time by reading from the `mcp_server
 
 **Status**: Future — not implemented, see [ADR-0006](./ADR/0006-cpt-cf-mini-chat-adr-mcp-deferred.md). No MCP modules, endpoints, tables or migrations exist in P1.
 
-The system MUST execute MCP tool calls within the existing agentic loop in `provider_task.rs`. When the LLM returns `TerminalOutcome::ToolUse`, the system MUST route the call by type: `search_knowledge` (existing path), MCP tool (dispatched via MCP routing map), or unknown tool (inject error output).
+The system MUST execute MCP tool calls within the existing agentic loop. When the LLM returns `TerminalOutcome::ToolUse`, the system MUST route the call by type: `search_knowledge` (existing path), MCP tool (dispatched via MCP routing map), or unknown tool (inject error output).
 
-**Sequential tool dispatch**: MCP tool calls MUST follow the same one-tool-per-iteration pattern as `search_knowledge`. Each `TerminalOutcome::ToolUse` carries a single `ToolCall`. The system dispatches the call (validate arguments → `McpClient::call_tool` → inject `function_call_output`), then continues the `'agentic` loop for the next iteration. This preserves the existing strictly-sequential loop in `provider_task.rs` — no breaking internal API change to `TerminalOutcome::ToolUse` or the provider adapters is required. Parallel dispatch (batching multiple tool calls per iteration via `futures::future::join_all`) is deferred to a future phase once the sequential path is stable.
+**Sequential tool dispatch**: MCP tool calls MUST follow the same one-tool-per-iteration pattern as `search_knowledge`. Each `TerminalOutcome::ToolUse` carries a single `ToolCall`. The system dispatches the call (validate arguments → `McpClient::call_tool` → inject `function_call_output`), then continues the `'agentic` loop for the next iteration. This preserves the existing strictly-sequential loop — no breaking internal API change to `TerminalOutcome::ToolUse` or the provider adapters is required. Parallel dispatch (batching multiple tool calls per iteration via `futures::future::join_all`) is deferred to a future phase once the sequential path is stable.
 
 **Mandatory argument validation**: before every `tools/call` dispatch, the LLM-generated arguments MUST be validated against the normalized JSON Schema stored in the routing map (by `schema_hash` lookup). On validation failure, a bounded error message MUST be injected as `function_call_output` — the MCP server MUST NOT be contacted.
 
@@ -779,7 +779,7 @@ The system MUST execute MCP tool calls within the existing agentic loop in `prov
 
 **Rate limiting**: the system MUST enforce two layers of MCP rate limiting (matching the `search_knowledge` pattern): (1) **Soft per-message limit** (`max_mcp_calls_per_message`, default 10) — when exceeded, inject a "limit reached" notice once, remove MCP tools from the continuation request, and let the LLM answer with available context; (2) **Hard iteration cap** (`max_agentic_iterations`) — absolute safety net (formula: `knowledge_search_max_calls + max_mcp_calls_per_message + 2`); if the LLM ignores the soft notice, the hard cap triggers `agentic_iterations_exceeded` and finalizes the turn as `Failed`. Per-server semaphores MUST cap concurrent `tools/call` requests. Per-tenant/global semaphores MUST prevent a single tenant from exhausting worker capacity. A circuit breaker MUST open after repeated timeouts/transport failures and fail fast until backoff expires. If cumulative token usage approaches the reserved budget during MCP tool loop iterations, MCP tools MUST be disabled for subsequent continuation requests and the model MUST be instructed to answer without additional tools.
 
-**Audit & billing**: a new `ToolCallType::Mcp` variant MUST be added. Each completed MCP `tools/call` MUST increment via `TurnRepository::increment_tool_calls`. Per-server and per-tool granularity MUST be captured in structured `McpToolAuditRecord` entries on `TurnAuditEvent` (inside the `AuditEnvelope::Turn` variant). `TurnAuditEvent` MUST gain `mcp_tool_calls: Option<u32>`, `mcp_effective_snapshot: Option<McpEffectiveSnapshot>`, and a `Vec<McpToolAuditRecord>` field. The `ToolCalls` sub-struct in `audit_models.rs` MUST gain `mcp_calls: Option<u64>`. Each record MUST include: `server_id`, `exposed_tool_name`, `original_tool_name`, `call_id`, `status`, `duration_ms`, `error_class`, and hashes/redacted summaries of arguments/results. Raw arguments/results MUST NOT be stored by default. Prometheus metrics: `mcp_tool_calls_total{server_id, tool_name, status}`, `mcp_tool_call_duration_seconds{server_id, tool_name}`, `mcp_tool_discovery_duration_seconds{server_id}`, `mcp_role_server_assignments` (gauge). MCP tool definitions injected as `LlmTool::Function` consume input tokens; the production estimator MUST use actual serialized, normalized tool definitions, not a fixed per-server constant. Runtime budget enforcement MUST reserve for worst-case continuation iterations up to `max_mcp_calls_per_message`.
+**Audit & billing**: a new `ToolCallType::Mcp` variant MUST be added. Each completed MCP `tools/call` MUST increment via `TurnRepository::increment_tool_calls`. Per-server and per-tool granularity MUST be captured in structured `McpToolAuditRecord` entries on `TurnAuditEvent` (inside the `AuditEnvelope::Turn` variant). `TurnAuditEvent` MUST gain `mcp_tool_calls: Option<u32>`, `mcp_effective_snapshot: Option<McpEffectiveSnapshot>`, and a `Vec<McpToolAuditRecord>` field. The `ToolCalls` sub-struct MUST gain `mcp_calls: Option<u64>`. Each record MUST include: `server_id`, `exposed_tool_name`, `original_tool_name`, `call_id`, `status`, `duration_ms`, `error_class`, and hashes/redacted summaries of arguments/results. Raw arguments/results MUST NOT be stored by default. Prometheus metrics: `mcp_tool_calls_total{server_id, tool_name, status}`, `mcp_tool_call_duration_seconds{server_id, tool_name}`, `mcp_tool_discovery_duration_seconds{server_id}`, `mcp_role_server_assignments` (gauge). MCP tool definitions injected as `LlmTool::Function` consume input tokens; the production estimator MUST use actual serialized, normalized tool definitions, not a fixed per-server constant. Runtime budget enforcement MUST reserve for worst-case continuation iterations up to `max_mcp_calls_per_message`.
 
 **Security & trust model**: MCP integration introduces an external execution boundary. Tool execution MUST re-check server/tool visibility at call time; role-grant-time authorization is not sufficient. MCP tool names, descriptions, schemas, arguments, and outputs MUST be treated as untrusted at all times. Summary of defense-in-depth controls:
 
@@ -840,7 +840,7 @@ Per-user LLM costs MUST be bounded by configurable token-based rate limits acros
 
 - [ ] `p1` - **ID**: `cpt-cf-mini-chat-nfr-streaming-latency`
 
-The system MUST minimize platform overhead beyond provider latency. Define `mini_chat_ttft_overhead_ms = t_first_token_sent_to_sse_channel - t_first_byte_from_provider`: the time from the provider's first streamed token to its send on the internal channel to the SSE writer (`provider_task.rs`). Time after that send (SSE writer, network, UI) is not measured. Streaming events MUST be relayed without buffering.
+The system MUST minimize platform overhead beyond provider latency. Define `mini_chat_ttft_overhead_ms = t_first_token_sent_to_sse_channel - t_first_byte_from_provider`: the time from the provider's first streamed token to its send on the internal channel to the SSE writer. Time after that send (SSE writer, network, UI) is not measured. Streaming events MUST be relayed without buffering.
 
 **Threshold**: `mini_chat_ttft_overhead_ms` p99 < 50 ms (in-gear overhead from the provider's first byte to the internal SSE channel, excluding provider latency)
 **Rationale**: Users expect near-instant response start in a chat interface.
@@ -871,7 +871,7 @@ Mini Chat MUST provide an explicit operational contract to support on-call, SRE,
 
 #### Metrics contract (P1)
 
-The service MUST record OpenTelemetry metrics with the series names below and export them over OTLP (there is no Prometheus endpoint in the process). The instruments are defined in `mini-chat/src/infra/metrics.rs`; names use the configurable prefix (default `mini_chat`). Metrics are exported over OTLP; counter instrument names carry no `_total` suffix, and whether `_total` is appended depends on the OTLP-to-Prometheus conversion downstream (usually it is), not on this gear; the counters below are written with `_total` on that assumption. Label sets below are the ones recorded by the code.
+The service MUST record OpenTelemetry metrics with the series names below and export them over OTLP (there is no Prometheus endpoint in the process). Instrument names use the configurable prefix (default `mini_chat`). Metrics are exported over OTLP; counter instrument names carry no `_total` suffix, and whether `_total` is appended depends on the OTLP-to-Prometheus conversion downstream (usually it is), not on this gear; the counters below are written with `_total` on that assumption. Label sets below are the ones recorded by the code.
 
 Prometheus labels MUST NOT include high-cardinality identifiers such as `tenant_id`, `user_id`, `chat_id`, `request_id`, or `provider_response_id`.
 
@@ -961,7 +961,7 @@ The contract has two parts:
 
 ##### Declared, deferred (not recorded in P1)
 
-Registered in `metrics.rs` but never recorded:
+Registered but never recorded:
 
 - Streaming: `mini_chat_stream_replay_total{reason}`
 - Cancellation: `mini_chat_tokens_after_cancel{trigger}`, `mini_chat_time_from_ui_disconnect_to_cancel_ms{trigger}`, `mini_chat_cancel_orphan_total`
@@ -1041,7 +1041,7 @@ Turns stuck in `running` state beyond a configurable timeout (e.g. pod crash wit
 **Type**: REST API
 **Stability**: stable
 **Description**: Public HTTP API for chat management, message listing with cursor pagination, message streaming, file upload, attachment status, message reactions, turn status and mutations, the model catalog and quota status. All endpoints require authentication and tenant license verification (P1: base license feature, see `cpt-cf-mini-chat-fr-license-gate`).
-**Breaking Change Policy**: Versioned via URL prefix (`/v1/`). Breaking changes require new version. The generated OpenAPI document (`docs/api/api.json` at the repository root) is the reference for request and response schemas.
+**Breaking Change Policy**: Versioned via URL prefix (`/v1/`). Breaking changes require new version. The generated OpenAPI document is the reference for request and response schemas.
 
 **Endpoints (P1)**:
 
@@ -1200,7 +1200,7 @@ A turn soft-deleted by retry, edit or delete returns 404 (`not_found`). A turn o
 | Upload concurrency limit | `service_unavailable` | 503 + `Retry-After` | `Retry-After: 5` (`context.retry_after_seconds = 5`) |
 | Internal / database error | `internal` | 500 | |
 
-`StreamError::Replay` maps to 409 `aborted` with reason `REPLAY` in `api/rest/error.rs`. The arm is defensive: the `messages:stream` handler intercepts `Replay` and serves the buffered SSE replay of the completed turn (`api/rest/handlers/messages.rs`), so clients do not receive this error.
+`StreamError::Replay` maps to 409 `aborted` with reason `REPLAY`. The arm is defensive: the `messages:stream` handler intercepts `Replay` and serves the buffered SSE replay of the completed turn, so clients do not receive this error.
 
 Superseded statuses: 413 `file_too_large`, 415 `unsupported_file_type` / `unsupported_media`, 502 `provider_error` and 504 `provider_timeout` are no longer returned by mini-chat REST endpoints (api-gateway can still answer 413 when the body exceeds its `defaults.body_limit_bytes`). HTTP 415 is still returned by the platform JSON extractor with reason `missing_json_content_type` (see the table); the per-chat document limit changed from 400 to 429. `image_bytes_exceeded` and the `uploads` / `image_inputs` quota scopes are not implemented. MCP error codes (`mcp_server_unavailable`, `mcp_server_not_found`, `mcp_assign_denied`) belong to the Future MCP scope ([ADR-0006](./ADR/0006-cpt-cf-mini-chat-adr-mcp-deferred.md)).
 
@@ -1668,7 +1668,7 @@ Provider identifiers (`provider_file_id`, `provider_response_id`, `vector_store_
 - (Future MCP support, ADR-0006) OAGW's `OAuth2ClientCredAuthPlugin` supports per-user token caching via `SecurityContext` (cache key includes `subject_tenant_id` and `subject_id`)
 - (Future MCP support, ADR-0006) OAGW's auth plugins (`apikey`, `oauth2_client_cred`) resolve secrets from credstore scoped to the calling user's `SecurityContext`
 - (Future MCP support, ADR-0006) OAGW supports header passthrough configuration for the MCP session headers `Mcp-Protocol-Version` and `Mcp-Session-Id` (forwarded to the upstream MCP server via the upstream's passthrough allowlist)
-- (Future MCP support, ADR-0006) **OAGW endpoint pinning via `X-OAGW-Target-Host` is a confirmed, pre-existing OAGW capability — not a new requirement introduced by mini-chat.** For a multi-endpoint upstream, a proxied request carrying `X-OAGW-Target-Host: <host>` is routed to the matching endpoint instead of the default round-robin selection; the header value is validated against the upstream's registered endpoint list and rejected with typed errors on failure (`MISSING_TARGET_HOST`, `INVALID_TARGET_HOST`, `UNKNOWN_TARGET_HOST`). Unlike the MCP session headers above, `X-OAGW-Target-Host` is an **OAGW-internal routing directive**: it is consumed by OAGW's endpoint selector and stripped before the request reaches the upstream (and stripped from upstream responses), so it is NOT part of the upstream passthrough allowlist. mini-chat relies on this capability only to keep an MCP session pinned to the backend replica that served `initialize`; single-endpoint upstreams (the common case) never send it. **OAGW spec reference**: two-tier endpoint selection in the `oagw` gear (`infra/proxy/service.rs::select_endpoint`, Tier 1 = explicit `X-OAGW-Target-Host` selection), the SDK error contract in `oagw-sdk` (`field::{MISSING,INVALID,UNKNOWN}_TARGET_HOST`, `ServiceGatewayError::InvalidTargetHost`), and the conformance scenarios under `scenarios/proxy-api/custom-header-routing/` (e.g. `positive-2.2-multi-endpoint-explicit-alias-with-header`, `positive-3.2-case-insensitive-matching`, `negative-2.1-unknown-host`)
+- (Future MCP support, ADR-0006) **OAGW endpoint pinning via `X-OAGW-Target-Host` is a confirmed, pre-existing OAGW capability — not a new requirement introduced by mini-chat.** For a multi-endpoint upstream, a proxied request carrying `X-OAGW-Target-Host: <host>` is routed to the matching endpoint instead of the default round-robin selection; the header value is validated against the upstream's registered endpoint list and rejected with typed errors on failure (`MISSING_TARGET_HOST`, `INVALID_TARGET_HOST`, `UNKNOWN_TARGET_HOST`). Unlike the MCP session headers above, `X-OAGW-Target-Host` is an **OAGW-internal routing directive**: it is consumed by OAGW's endpoint selector and stripped before the request reaches the upstream (and stripped from upstream responses), so it is NOT part of the upstream passthrough allowlist. mini-chat relies on this capability only to keep an MCP session pinned to the backend replica that served `initialize`; single-endpoint upstreams (the common case) never send it. **OAGW spec reference**: two-tier endpoint selection in the `oagw` gear (Tier 1 = explicit `X-OAGW-Target-Host` selection) and the SDK error contract in `oagw-sdk` (`field::{MISSING,INVALID,UNKNOWN}_TARGET_HOST`, `ServiceGatewayError::InvalidTargetHost`)
 - Platform AuthN provides `user_id` and `tenant_id` in the security context for every request
 - Platform `license_manager` can resolve the `ai_chat` feature flag synchronously
 - An audit plugin is registered in types-registry to receive audit events (without one, events are dropped with a warning — [ADR-0009](./ADR/0009-cpt-cf-mini-chat-adr-data-lifecycle-audit-scope.md))
@@ -1709,7 +1709,7 @@ Provider identifiers (`provider_file_id`, `provider_response_id`, `vector_store_
 
 ## 13. Open Questions
 
-- ~~What document file types are supported in P1 beyond `pdf`, `docx`, and plain text?~~ **Resolved**: the upload allowlist is `ACCEPTED_MIMES` in `mini-chat/src/domain/mime_validation.rs`: PDF, DOCX, PPTX, XLSX (code interpreter only), plain text, Markdown, HTML, JSON, source code (Python, Java, JavaScript, TypeScript, Rust, Go, C#, Ruby, SQL), and the images PNG, JPEG, WebP and GIF. CSV is accepted as `text/plain` when `rag.allow_csv_upload` is on (default).
+- ~~What document file types are supported in P1 beyond `pdf`, `docx`, and plain text?~~ **Resolved**: the upload allowlist is `ACCEPTED_MIMES`: PDF, DOCX, PPTX, XLSX (code interpreter only), plain text, Markdown, HTML, JSON, source code (Python, Java, JavaScript, TypeScript, Rust, Go, C#, Ruby, SQL), and the images PNG, JPEG, WebP and GIF. CSV is accepted as `text/plain` when `rag.allow_csv_upload` is on (default).
 - What is the exact UX when `state=running` is returned from Turn Status API (poll cadence, max wait, and banner text)?
 - ~~Thread summary trigger thresholds~~ **Resolved**: token-based trigger (context truncation, or `compression_threshold_pct` of the input budget); see `cpt-cf-mini-chat-fr-thread-summary`
 - Is the system prompt configurable per tenant, or fixed platform-wide?
@@ -1724,7 +1724,7 @@ Provider identifiers (`provider_file_id`, `provider_response_id`, `vector_store_
 
 ### 13.1 P1 Defaults (configurable)
 
-These defaults are used for P1 and are set by the operator for the whole deployment (gear configuration or the static policy plugin configuration); there are no per-tenant overrides except the provider `tenant_overrides` (host, alias, auth). Values are the code defaults (`mini-chat/src/config.rs`, `mini-chat/src/config/background.rs`, the static model policy plugin and `mini-chat-sdk` model catalog types).
+These defaults are used for P1 and are set by the operator for the whole deployment (gear configuration or the static policy plugin configuration); there are no per-tenant overrides except the provider `tenant_overrides` (host, alias, auth). Values are the code defaults (the gear configuration and its worker sections, the static model policy plugin and `mini-chat-sdk` model catalog types).
 
 - Model catalog: no built-in default. The catalog is supplied by the policy plugin configuration (`model_catalog`, required when the plugin's config section is present; when the section is absent, the plugin runs with an empty catalog). The default model for new chats is the first enabled model marked `is_default`, otherwise the first enabled model (see `cpt-cf-mini-chat-fr-model-selection`).
 - Downgrade cascade: premium → standard; when all tiers exhausted → reject with HTTP 429 (`resource_exhausted`)
@@ -1780,5 +1780,4 @@ MCP defaults below are Future ([ADR-0006](./ADR/0006-cpt-cf-mini-chat-adr-mcp-de
   - [ADR-0008](./ADR/0008-cpt-cf-mini-chat-adr-quota-policy-scope.md) — P1 scope of quota, policy and licensing controls (§5.2, §5.4, §5.6, §9)
   - [ADR-0009](./ADR/0009-cpt-cf-mini-chat-adr-data-lifecycle-audit-scope.md) — P1 scope of data retention, chat deletion and audit content (§5.4, §5.5, §6.1)
   - [ADR-0010](./ADR/0010-cpt-cf-mini-chat-adr-runtime-consistency-limitations.md) — accepted runtime and consistency limitations (replay, SSE ping, watchdog)
-- **API reference**: generated OpenAPI `docs/api/api.json` at the repository root
-- **Features**: [features/](./features/)
+- **API reference**: generated OpenAPI document

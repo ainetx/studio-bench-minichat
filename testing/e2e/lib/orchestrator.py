@@ -59,7 +59,7 @@ class GearTestEnv:
     sidecars: list[Any] = field(default_factory=list)  # list[SidecarProtocol]
 
     # Logging — default uses port to avoid collisions between parallel runs.
-    log_suffix: str | None = None  # e.g. "mini-chat" → cf-gears-e2e-8087-mini-chat.log
+    log_suffix: str | None = None  # e.g. "my-suite" → cf-gears-e2e-8087-my-suite.log
 
 
 # ── RunningTestEnv ────────────────────────────────────────────────────────

@@ -496,7 +496,7 @@ fn extract_id_input(instance: &ExprStruct) -> syn::Result<GtsIdInput> {
 /// ```ignore
 /// toolkit_gts::gts_instance! {
 ///     AuthzPermissionV1 {
-///         id: gts_id!("cf.toolkit.authz.permission.v1~cf.mini_chat._.chat_read.v1"),
+///         id: gts_id!("cf.toolkit.authz.permission.v1~cf.example_chat._.chat_read.v1"),
 ///         resource_type: "...".to_owned(),
 ///         action: "read".to_owned(),
 ///         display_name: "Read chat".to_owned(),
