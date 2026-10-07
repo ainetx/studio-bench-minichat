@@ -50,7 +50,7 @@ The daily web-search and code-interpreter quotas **are** implemented. They rejec
 ### Confirmation
 
 * Quota service unit tests cover tool-quota gating and the downgrade cascade, including the reserve checked per cascade candidate. Stream service unit tests cover the reserve re-check after a concurrent reserve, on send and on retry/edit.
-* The Mini Chat E2E quota and policy scenarios cover 429, premium downgrade, `model_disabled`, the daily web-search and code-interpreter quotas and the quota status flags (usage is seeded per test user). Kill switches are fixed configuration of the E2E rig and are covered by quota service and attachment service unit tests.
+* Quota service and attachment service unit tests cover the kill switches.
 
 ## More Information
 

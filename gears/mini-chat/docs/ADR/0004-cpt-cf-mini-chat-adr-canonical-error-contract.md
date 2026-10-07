@@ -98,7 +98,6 @@ A replay of a completed turn's `request_id` on `messages:stream` is defined as 4
 ### Confirmation
 
 * Unit tests of the REST error mapping pin the category, status and reason of the mappings they cover (not every variant has a dedicated test).
-* The Mini Chat E2E suite asserts `Problem.type` and the reason fields through a shared assertion helper.
 * The generated OpenAPI (`docs/api/api.json`) is the reference for the response schemas.
 
 ## Pros and Cons of the Options

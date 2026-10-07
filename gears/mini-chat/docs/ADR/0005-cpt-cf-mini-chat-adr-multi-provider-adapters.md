@@ -79,7 +79,6 @@ The gear therefore declares `deps = [types_registry, authn_resolver, authz_resol
 
 * Unit tests cover each adapter: OpenAI Responses, vLLM Responses, Chat Completions and Anthropic Messages.
 * Unit tests cover OAGW provisioning.
-* Provider-parametrized E2E scenarios run against both configured providers, `openai` and `azure`. Both E2E providers use `kind: openai_responses` in the E2E configuration; the Chat Completions, vLLM and Anthropic adapters have no E2E coverage.
 
 ## Pros and Cons of the Options
 

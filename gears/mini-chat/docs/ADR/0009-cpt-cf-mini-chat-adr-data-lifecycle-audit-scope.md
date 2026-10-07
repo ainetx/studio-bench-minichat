@@ -47,7 +47,6 @@ Chosen option: "Record the implemented subset and mark the rest Not implemented"
 
 ### Confirmation
 
-* E2E cleanup scenarios: after `DELETE /chats/{id}`, the chat and its sub-resources return 404 and cleanup outbox rows are written.
 * Finalization unit tests pin the audit fields that are populated.
 
 ## More Information

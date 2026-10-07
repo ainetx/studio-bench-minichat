@@ -9,7 +9,7 @@ date: 2026-09-26
 
 ## Context and Problem Statement
 
-PRD §5.2 and DESIGN specify several document-related capabilities. Some were implemented differently and some were not implemented. This ADR records the P1 state so the documents, the running system and the E2E suite agree.
+PRD §5.2 and DESIGN specify several document-related capabilities. Some were implemented differently and some were not implemented. This ADR records the P1 state so the documents and the running system agree.
 
 ## Decision Drivers
 
@@ -41,11 +41,6 @@ Chosen option: "Record the implemented behaviour and mark the gaps".
 
 * Good, because every documented behaviour is now testable against the running system.
 * Bad, because document summaries, the chunk cap and deletion-time retrieval exclusion remain open product gaps.
-
-### Confirmation
-
-* E2E: a document upload reaches `ready`. `doc_summary` is asserted null/absent only for an XLSX (code interpreter) upload that reaches `ready`; no test asserts it for a `file_search` document.
-* E2E scenario 10-04: deleting a referenced attachment gives 409 `attachment_locked`.
 
 ## More Information
 
