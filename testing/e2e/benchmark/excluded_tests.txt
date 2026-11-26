@@ -1,0 +1,56 @@
+# Tests of the donor suite that test.sh deselects and the graded roster (tests/expected_tests.txt)
+# does not list. They stay in the suite as the donor wrote them.
+# Agreed on 2026-10-02 with the gear's authors. The code interpreter has no acceptance-checklist
+# item, `tools[].container.type` is undocumented, and its e2e coverage was dropped as a whole
+# (24 tests: test_code_interpreter, test_code_interpreter_usage and the daily-quota tests of
+# test_quota_policy). Every other gap the audit found was closed on the specification side by
+# upstream constructorfabric/gears-rust#5179 (the thread-summary prompt format and preamble, the
+# sanitizer's recognized prefixes, `field_violations[image_count]`) or on the test side by the
+# same PR (error-mapping and reaction tests assert `code` and `reason`, never a message text).
+test_code_interpreter_usage::TestCodeInterpreterUsageAccounting::test_code_interpreter_calls_tracked_in_db[azure]
+test_code_interpreter_usage::TestCodeInterpreterUsageAccounting::test_code_interpreter_calls_tracked_in_db[openai]
+test_code_interpreter_usage::TestCodeInterpreterUsageAccounting::test_code_interpreter_usage_correct[azure]
+test_code_interpreter_usage::TestCodeInterpreterUsageAccounting::test_code_interpreter_usage_correct[openai]
+test_code_interpreter_usage::TestCodeInterpreterUsageAccounting::test_non_ci_turn_has_zero_ci_calls[azure]
+test_code_interpreter_usage::TestCodeInterpreterUsageAccounting::test_non_ci_turn_has_zero_ci_calls[openai]
+test_code_interpreter::TestCodeInterpreterEventOrdering::test_tool_events_before_done
+test_code_interpreter::TestCodeInterpreterPerMessageLimit::test_eleventh_code_interpreter_call_fails_the_turn
+test_code_interpreter::TestCodeInterpreterProviderRequest::test_code_interpreter_tool_in_request
+test_code_interpreter::TestCodeInterpreterToolEvents::test_code_interpreter_done_has_output
+test_code_interpreter::TestCodeInterpreterToolEvents::test_code_interpreter_has_start_and_done
+test_code_interpreter::TestCodeInterpreterToolEvents::test_code_interpreter_stream_has_deltas
+test_code_interpreter::TestMixedAttachments::test_mixed_xlsx_and_txt_both_tools_in_request
+test_code_interpreter::TestXlsxOctetStreamInference::test_xlsx_octet_stream_accepted
+test_code_interpreter::TestXlsxPurposeRouting::test_txt_triggers_file_search_not_code_interpreter
+test_code_interpreter::TestXlsxPurposeRouting::test_xlsx_triggers_code_interpreter_not_file_search
+test_code_interpreter::TestXlsxUploadAccepted::test_xlsx_reaches_ready
+test_code_interpreter::TestXlsxUploadAccepted::test_xlsx_rejected_without_code_interpreter
+test_code_interpreter::TestXlsxUploadAccepted::test_xlsx_upload_accepted
+test_quota_policy::TestCodeInterpreterDailyQuota::test_code_interpreter_quota_allows_mutation_without_xlsx[edit]
+test_quota_policy::TestCodeInterpreterDailyQuota::test_code_interpreter_quota_allows_mutation_without_xlsx[retry]
+test_quota_policy::TestCodeInterpreterDailyQuota::test_code_interpreter_quota_blocks_mutation[edit]
+test_quota_policy::TestCodeInterpreterDailyQuota::test_code_interpreter_quota_blocks_mutation[retry]
+test_quota_policy::TestCodeInterpreterDailyQuota::test_code_interpreter_quota_only_blocks_ci_chats
+
+# Second group, after upstream PR 5179 was applied (8 tests): each still asserts something the
+# documents do not state, or states differently.
+# - test_summary_replaces_summarized_messages, test_retry_after_summary_does_not_resend_replaced_answer:
+#   the exact separator ("\n\n") between the documented preamble and the summary text.
+# - test_summary_failing_every_attempt_changes_nothing: the dead-letter reason text "max attempts (3)";
+#   DESIGN only says the handler rejects on the third delivery.
+# - test_completed_without_usage_is_provider_error: DESIGN says a completed turn is billed as actual
+#   even with no usage; the test expects an SSE error.
+# - test_function_call_with_invalid_json_arguments_is_provider_error: DESIGN maps any tool use with
+#   knowledge search off to `unexpected_tool_use`; the test expects `provider_error`.
+# - test_stream_without_terminal_event_is_provider_error: DESIGN reads both as `provider_error`
+#   and as `stream_interrupted`.
+# - test_more_images_than_allowed_400[edit|retry]: `context.resource_type` on a 400 validation
+#   error is not stated for this case.
+test_thread_summary::TestThreadSummary::test_summary_replaces_summarized_messages
+test_thread_summary::TestThreadSummary::test_retry_after_summary_does_not_resend_replaced_answer
+test_thread_summary::TestThreadSummaryFailures::test_summary_failing_every_attempt_changes_nothing
+test_error_mapping::TestErrorMapping::test_completed_without_usage_is_provider_error
+test_error_mapping::TestErrorMapping::test_function_call_with_invalid_json_arguments_is_provider_error
+test_error_mapping::TestErrorMapping::test_stream_without_terminal_event_is_provider_error
+test_turn_mutations::TestMutationAttachments::test_more_images_than_allowed_400[edit]
+test_turn_mutations::TestMutationAttachments::test_more_images_than_allowed_400[retry]
